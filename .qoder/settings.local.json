@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(*)",
+      "Bash(cd /Users/saturnlai/florahub && ls -la && ls -d prisma pb_migrations docs server pages components utils composables types 2>/dev/null)",
+      "Bash(cd /Users/saturnlai/florahub && ls pb_migrations | head -80 && echo --- && ls docs && echo --- && ls server/api server/utils server/api/webhooks server/api/admin 2>/dev/null)",
+      "Bash(cd /Users/saturnlai/florahub && ls pb_migrations | tail -40 && echo --- && ls prisma && echo --- && ls utils && echo --- && ls pages pages/admin pages/admin/orders && echo --- && ls components/admin && echo --- && ls composables)",
+      "Bash(cd /Users/saturnlai/florahub && grep -rniE \"goship|ghtk|viettelpost|ghn|shipping|carrier|tracking\" --include=\"*.ts\" --include=\"*.vue\" --include=\"*.js\" --include=\"*.md\" --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir=.output --exclude-dir=pb_data . | head -100)",
+      "Bash(cd /Users/saturnlai/florahub && sed -n '1,220p' pb_migrations/1792983280_created_orders.js && echo '===UPDATED===' && cat pb_migrations/1793160086_updated_orders.js)",
+      "Bash(cd /Users/saturnlai/florahub && cat pb_migrations/1792983280_created_order_items.js && echo '===STORE CONFIGS===' && cat pb_migrations/1792990000_created_store_configs.js && echo '===UPD STORE===' && cat pb_migrations/1793163572_updated_store_configs.js)",
+      "Bash(cd /Users/saturnlai/florahub && cat pb_migrations/1793900000_added_order_accounting.js pb_migrations/1793600000_added_sepay_payment.js pb_migrations/1793600100_added_wallet_topup_fields.js pb_migrations/1793700000_added_sepay_checkout_fields.js | grep -E 'name|addField|collection' | head -100)",
+      "Bash(cd /Users/saturnlai/florahub && cat pb_migrations/1793800000_created_payment_settings.js | head -120 && echo '===PRISMA===' && grep -nE '^model|^  [a-zA-Z]|@map' prisma/schema.prisma | head -150)",
+      "Bash(cd /Users/saturnlai/florahub && sed -n '120,320p' pb_migrations/1793800000_created_payment_settings.js | grep -nE '\"name\"|Rule|indexes' && echo '===PRISMA ORDER===' && sed -n '207,320p' prisma/schema.prisma)",
+      "Bash(cd /Users/saturnlai/florahub && cat -n server/utils/place-order.ts && echo '===STATE===' && cat -n utils/order-state.ts)",
+      "Bash(cd /Users/saturnlai/florahub && cat -n server/api/admin/orders/\\\\[id\\\\].patch.ts && echo '===GET===' && cat -n server/api/admin/orders/\\\\[id\\\\].get.ts)",
+      "Bash(cd /Users/saturnlai/florahub && cat -n server/utils/payment-settings.ts && echo '===GET===' && cat -n server/api/admin/payment-settings/index.get.ts && echo '===PUT===' && cat -n server/api/admin/payment-settings/index.put.ts && echo '===ALT===' && cat -n server/api/admin/payment-settings.get.ts server/api/admin/payment-settings.put.ts)",
+      "Bash(cd /Users/saturnlai/florahub && cat -n server/api/admin/payment-settings.get.ts && echo '===PUT===' && cat -n server/api/admin/payment-settings.put.ts && echo '===DIR===' && ls -R server/api/admin/payment-settings 2>/dev/null)",
+      "Bash(cd /Users/saturnlai/florahub && cat -n server/api/webhooks/sepay-ipn.post.ts && echo '===SEPAY===' && cat -n server/api/webhooks/sepay.post.ts | head -160)",
+      "Bash(cd /Users/saturnlai/florahub && cat -n server/utils/store.ts | sed -n '100,260p' && echo '===SITE===' && cat -n server/utils/site.ts | sed -n '1,120p' && echo '===TYPES STORE===' && cat -n types/store.ts | sed -n '40,100p')",
+      "Bash(cd /Users/saturnlai/florahub && cat -n server/utils/pocketbase.ts | head -140 && echo '===ADMIN===' && cat -n server/utils/admin.ts | head -140 && echo '===FORMAT===' && cat -n utils/format.ts)",
+      "Bash(cd /Users/saturnlai/florahub && wc -l pages/admin/orders/index.vue pages/admin/orders/\\\\[id\\\\].vue pages/checkout.vue components/admin/PaymentSettingsPanel.vue pages/admin/payments.vue pages/admin/storefront.vue components/admin/StorefrontEditor.vue pages/admin/index.vue && echo '===ID PANELS===' && grep -nE 'Panel|panel|refund|Refund|invoice|Invoice|journal|Journal|affiliate|Affiliate|shipping|Shipping|note|Note|status|Status|Save|section|tab' pages/admin/orders/\\\\[id\\\\].vue | head -120)",
+      "Bash(cd /Users/saturnlai/florahub && grep -nE 'shipping|Shipping|fee|Fee|total|Total|threshold|promo|checkout|place-order|api/' pages/checkout.vue | head -100 && echo '===PAYMENTS PAGE===' && cat -n pages/admin/payments.vue | head -80 && echo '===PANEL===' && grep -nE 'has|hint|mask|apiToken|webhook|scope|Save|section|props|emit|placeholder' components/admin/PaymentSettingsPanel.vue | head -80)",
+      "Bash(cd /Users/saturnlai/florahub && sed -n '430,520p' pages/admin/orders/\\\\[id\\\\].vue && echo '===REST===' && sed -n '600,872p' pages/admin/orders/\\\\[id\\\\].vue | grep -nE 'section|h2|h3|button|label|modal|dialog|refund|Đơn|Thanh toán|Ghi chú|hành' | head -80)",
+      "Bash(cd /Users/saturnlai/florahub && grep -nE 'request<|/api/admin/orders|status|filter|search|export|invoice|refund|markPaid|advance|bulk|href|NuxtLink' pages/admin/orders/index.vue | head -90 && echo '===ORDER API===' && ls server/api/orders && grep -rn \"placeOrder\\\\|priceOrder\" server/api/orders server/api/agent | head)",
+      "Bash(cd /Users/saturnlai/florahub && cat -n types/index.ts | sed -n '185,335p' && echo '===ADMIN TYPES===' && cat -n types/admin.ts | sed -n '1,90p')",
+      "Bash(cd /Users/saturnlai/florahub && sed -n '1,80p' docs/luong-thanh-toan-sepay.md && echo '...' && grep -nE '^#|^##|^###|^```|^\\\\|' docs/luong-thanh-toan-sepay.md | head -60 && echo '===STOREFRONT===' && grep -nE 'shippingFee|freeShippingThreshold|taxRate|features|Giao hàng|Vận chuyển' components/admin/StorefrontEditor.vue | head -60)",
+      "Bash(cd /Users/saturnlai/florahub && grep -nE '^export \\(async \\)?function|^export const|fetch\\\\\\(' server/utils/pocketbase.ts server/utils/sepay-api.ts server/utils/sepay-pg.ts | head -100 && echo '===ORDER UTIL===' && cat -n server/utils/order.ts && echo '===ADMIN DATA===' && cat -n server/utils/admin-data.ts | head -60)",
+      "Bash(cd /Users/saturnlai/florahub && ls server/api/admin/orders/\\\\[id\\\\] && grep -n \"orders\\\\|payments\\\\|storefront\" layouts/admin.vue | head -40 && echo '===CHECKOUT ADDR===' && sed -n '30,120p' pages/checkout.vue && echo '===ORDER POST===' && cat -n server/api/orders/index.post.ts)",
+      "Bash(cd /Users/saturnlai/florahub && sed -n '300,435p' pages/admin/orders/\\\\[id\\\\].vue && echo '===MODALS===' && grep -nE 'AdminInvoiceDetail|refundOpen|invoiceDetailOpen|cancelInvoiceOpen|Teleport|modal|fixed inset' pages/admin/orders/\\\\[id\\\\].vue)",
+      "Bash(cd /Users/saturnlai/florahub && sed -n '40,110p' server/utils/sepay-api.ts && echo '===REFUND===' && sed -n '1,50p' server/api/admin/orders/\\\\[id\\\\]/refund.post.ts && echo '===STORE API===' && find server/api -path '*store*' -o -path '*storefront*' | head -20 && echo '===STOREFRONT PAGE===' && cat -n pages/admin/storefront.vue)",
+      "Bash(cd /Users/saturnlai/florahub && sed -n '1,110p' server/utils/sepay-pg.ts && echo '===STORE CONFIG PUT===' && cat -n server/api/store/config.put.ts | head -50 && echo '===PKG===' && grep -nE 'dependencies|axios|ofetch|zod|sepay|shipping' -A15 package.json | head -40)",
+      "Bash(cd /Users/saturnlai/florahub && sed -n '86,150p' docs/luong-thanh-toan-sepay.md && echo '===ADMIN MUT===' && sed -n '140,190p' server/utils/admin.ts && echo '===PANEL FETCH===' && sed -n '50,130p' components/admin/PaymentSettingsPanel.vue)",
+      "WebFetch(*)",
+      "WebFetch(*)",
+      "WebFetch(*)",
+      "WebFetch(*)",
+      "WebFetch(*)",
+      "Bash(cd /Users/saturnlai/florahub && ls server/utils server/api/admin server/api/webhooks pages/admin components/admin 2>/dev/null && echo '---' && ls pb_migrations | tail -20)"
+    ]
+  }
+}

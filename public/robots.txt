@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/admin
+Disallow: /api/account
+Disallow: /studio
+
+# Catalog cho agent: /llms.txt và /api/mcp

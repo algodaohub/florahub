@@ -1,0 +1,24 @@
+/* Only the Vant styles used by the storefront (toast + confirm dialog).
+   Importing vant/lib/index.css would ship ~196 KB of unused component CSS. */
+@import 'vant/es/style/base.css';
+@import 'vant/es/icon/index.css';
+@import 'vant/es/badge/index.css';
+@import 'vant/es/loading/index.css';
+@import 'vant/es/overlay/index.css';
+@import 'vant/es/popup/index.css';
+@import 'vant/es/button/index.css';
+@import 'vant/es/action-bar/index.css';
+@import 'vant/es/action-bar-button/index.css';
+@import 'vant/es/toast/index.css';
+@import 'vant/es/dialog/index.css';
+
+/* Theme cửa hàng — khai báo lại sau base.css để không phụ thuộc thứ tự nạp với main.css. */
+:root {
+  --van-primary-color: rgb(var(--color-primary));
+  --van-success-color: rgb(var(--color-primary));
+  --van-text-color: rgb(var(--color-ink));
+  --van-background: rgb(var(--color-paper));
+  --van-background-2: #fffdf9;
+  --van-border-color: rgb(var(--color-hairline));
+  --van-radius-lg: 16px;
+}
