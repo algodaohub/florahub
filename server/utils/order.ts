@@ -8,6 +8,7 @@ export function toOrderDetail(order: PbRecord, items: PbRecord[]) {
     subtotal: Number(order.subtotal ?? 0),
     shippingTotal: Number(order.shipping_total ?? 0),
     discountTotal: Number(order.discount_total ?? 0),
+    taxRate: Number(order.tax_rate ?? 0),
     taxTotal: Number(order.tax_total ?? 0),
     total: Number(order.total ?? 0),
     paymentMethod: order.payment_method || 'cod',

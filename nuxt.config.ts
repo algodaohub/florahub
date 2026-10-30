@@ -34,6 +34,13 @@ export default defineNuxtConfig({
       headers: { 'cache-control': 'no-store' }
     }
   },
+  nitro: {
+    experimental: { tasks: true },
+    scheduledTasks: {
+      // 00:05 ngày 1 hàng tháng: đối soát và lập phiếu chi nháp khi đủ hạn mức.
+      '5 0 1 * *': ['affiliate:monthly-reconcile']
+    }
+  },
   vite: {
     optimizeDeps: { include: ['vant'] }
   }

@@ -68,6 +68,14 @@ export type StoreFeatures = {
   locale: string
   taxRate: number
   affiliateCommissionRate: number
+  /** Số ngày giữ hoa hồng sau khi đơn hoàn tất trước khi duyệt (0 = duyệt ngay). */
+  affiliateHoldDays: number
+  /** Số ngày ghi nhận giới thiệu (cookie ref) kể từ lần click. */
+  affiliateAttributionDays: number
+  /** Hạn mức tối thiểu (VND) trên tổng hoa hồng gộp đã gồm GTGT để lập phiếu chi tự động. */
+  affiliatePayoutThreshold: number
+  /** Tự động đối soát và lập phiếu chi nháp hàng tháng khi đủ hạn mức. */
+  affiliateAutoReconcile: boolean
   /** Minimum total quantity per order (0 = no minimum). */
   minOrderQuantity: number
 }
@@ -81,8 +89,6 @@ export type StoreShippingPolicy = {
   preferredCarrier: string
   /** Số phương án tối đa trả cho khách. */
   maxOptions: number
-  allowedCarriers: string[]
-  blockedCarriers: string[]
   /** Tỉ lệ cộng thêm trên phí hãng vận chuyển (%). */
   markupPercent: number
   /** Miễn phí vận chuyển khi giá trị sản phẩm đạt ngưỡng (0 = tắt). */

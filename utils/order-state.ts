@@ -32,11 +32,6 @@ export function canSetPaymentStatus(from: unknown, to: unknown): boolean {
   return (PAYMENT_STATUS_FLOW[current] ?? []).includes(next)
 }
 
-/** Trạng thái kế tiếp khi xử lý đơn bình thường (bỏ nhánh huỷ). */
-export function nextOrderStatuses(from: unknown): string[] {
-  return (ORDER_STATUS_FLOW[String(from ?? '')] ?? []).filter((status) => status !== 'cancelled')
-}
-
 export function canCancelOrder(status: unknown): boolean {
   return (ORDER_STATUS_FLOW[String(status ?? '')] ?? []).includes('cancelled')
 }

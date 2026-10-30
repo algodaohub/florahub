@@ -158,12 +158,15 @@ Response mỗi option gồm:
     "is_recall": 0,
     "address_from": { "name": "…", "phone": "…", "street": "…", "ward": "108", "district": "100900", "city": "100000" },
     "address_to":   { "name": "…", "phone": "…", "street": "…", "ward": "37", "district": "100300", "city": "100000" },
-    "parcel": { "cod": 350000, "amount": 350000, "weight": 800, "width": 20, "height": 15, "length": 30, "metadata": {} }
+    "parcel": { "cod": 350000, "amount": 350000, "weight": 800, "width": 20, "height": 15, "length": 30, "metadata": "Khách dặn giao buổi chiều" }
   }
 }
 ```
 
 - `ward`, `district`, `city` là **mã** Goship.
+- `parcel.metadata` là **ghi chú vận đơn** và phải là **chuỗi**. Goship ghi thẳng giá trị này vào cột DB,
+  gửi object (`{}`) sẽ bị PHP báo `Array to string conversion` và API trả 422. FloraHub gửi `order.note`
+  khi có nội dung, bỏ hẳn field khi ghi chú rỗng.
 - `payer`: `0` khách trả phí giao, `1` shop trả.
 - Tạo vận đơn **bất đồng bộ**: HTTP 200 kể cả khi thất bại; lỗi thật nằm ở `carrier_error` hoặc webhook.
 - Response có `id`, `shipment_status`, `tracking_number`, `carrier`, `carrier_short_name`, `sorting_code`,

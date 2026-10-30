@@ -128,8 +128,6 @@ export type PublicShippingSettings = {
     autoStrategy: 'cheapest' | 'fastest' | 'preferred'
     preferredCarrier: string
     maxOptions: number
-    allowedCarriers: string[]
-    blockedCarriers: string[]
     markupPercent: number
     absorbFeeDifference: boolean
   }

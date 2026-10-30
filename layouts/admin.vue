@@ -55,6 +55,13 @@ const nav = [
     match: /^\/admin\/accounting/
   },
   {
+    key: 'affiliates',
+    label: 'Cộng tác viên',
+    to: '/admin/affiliates',
+    path: 'M16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3 20v-1a5 5 0 0 1 10 0v1M13 20v-1a5 5 0 0 1 10 0v1',
+    match: /^\/admin\/affiliate/
+  },
+  {
     key: 'ai',
     label: 'Mô hình AI',
     to: '/admin/ai',

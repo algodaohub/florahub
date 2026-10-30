@@ -257,6 +257,8 @@ export type GoshipShipmentInput = {
   width: number
   height: number
   length: number
+  /** Ghi chú giao hàng gửi kèm vận đơn (Goship `parcel.metadata`). */
+  note?: string
   addressFrom: { name: string; phone: string; street: string; ward: string; district: string; city: string }
   addressTo: { name: string; phone: string; street: string; ward: string; district: string; city: string }
 }
@@ -307,8 +309,10 @@ export async function createShipment(input: GoshipShipmentInput): Promise<Goship
           weight: input.weight,
           width: input.width,
           height: input.height,
-          length: input.length
-          // Không gửi `metadata`: Goship ghi thẳng vào cột DB và lỗi "Array to string conversion" với object.
+          length: input.length,
+          // `metadata` là "Ghi chú vận đơn". Goship ghi thẳng vào cột DB nên phải là chuỗi,
+          // gửi object sẽ bị PHP báo "Array to string conversion" và trả 422.
+          ...(input.note ? { metadata: input.note } : {})
         }
       }
     }

@@ -249,8 +249,6 @@ export function publicShippingSettings(
       maxOptions: policy.maxOptions,
       autoStrategy: policy.autoStrategy,
       preferredCarrier: policy.preferredCarrier,
-      allowedCarriers: policy.allowedCarriers,
-      blockedCarriers: policy.blockedCarriers,
       markupPercent: policy.markupPercent,
       absorbFeeDifference: policy.absorbFeeDifference
     }

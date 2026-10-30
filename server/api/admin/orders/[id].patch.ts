@@ -3,6 +3,7 @@ import { requireAdminMutation } from '~~/server/utils/admin'
 import { isOrderStatus, isPaymentStatus, toText } from '~~/server/utils/admin-data'
 import { canSetOrderStatus, canSetPaymentStatus } from '~~/utils/order-state'
 import { ensureOrderAccounting } from '~~/server/utils/accounting'
+import { approveDueCommissionForOrder, cancelCommissionForOrder, syncCommissionAtPayment } from '~~/server/utils/affiliate-commission'
 import { ORDER_STATUS_META, PAYMENT_STATUS_META } from '~~/utils/admin'
 
 function orderLabel(status: string) {
@@ -128,6 +129,17 @@ export default defineEventHandler(async (event) => {
   }
 
   const fresh = (await pbGetRecord<PbRecord>('orders', id)) ?? updated
+
+  // Hoa hồng chốt theo tỷ lệ tại thời điểm đơn được đánh dấu đã thanh toán.
+  if (body.paymentStatus === 'paid' && String(current.payment_status ?? '') !== 'paid') {
+    await syncCommissionAtPayment(fresh, event).catch(() => undefined)
+  }
+
+  if (fresh.status === 'completed') {
+    await approveDueCommissionForOrder(fresh).catch(() => undefined)
+  } else if (fresh.status === 'cancelled') {
+    await cancelCommissionForOrder(fresh.id).catch(() => undefined)
+  }
 
   return {
     order: {

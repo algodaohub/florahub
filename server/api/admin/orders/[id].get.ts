@@ -2,6 +2,13 @@ import { pbFirst, pbGetRecord, pbListAll, pbQuote, type PbRecord } from '~~/serv
 import { requireAdmin } from '~~/server/utils/admin'
 import { journalForOrder } from '~~/server/utils/accounting'
 import { listShipmentEvents, orderShippingFromRecord } from '~~/server/utils/order-shipping'
+import { getStoreConfig } from '~~/server/utils/store'
+import { isQrPaymentReady } from '~~/utils/payments'
+import {
+  commissionEligibleAt,
+  effectiveCommissionStatus,
+  readAffiliateHoldDays
+} from '~~/server/utils/affiliate-commission'
 
 function displayName(record: PbRecord | null) {
   if (!record) return ''
@@ -28,6 +35,19 @@ export default defineEventHandler(async (event) => {
     listShipmentEvents(id)
   ])
 
+  const { config } = await getStoreConfig(event)
+  const qr = config.payments.qr
+  const paymentQr = isQrPaymentReady(config.payments)
+    ? {
+        enabled: true,
+        bankId: qr.bankId,
+        bankName: qr.bankName,
+        accountNo: qr.accountNo,
+        accountName: qr.accountName,
+        template: qr.template
+      }
+    : null
+
   let affiliate = null
   if (order.affiliate) {
     const record = await pbGetRecord<PbRecord>('affiliates', String(order.affiliate))
@@ -42,6 +62,9 @@ export default defineEventHandler(async (event) => {
       }
     }
   }
+
+  const holdDays = commissionRecord ? await readAffiliateHoldDays() : 0
+  const eligibleAtMs = commissionRecord ? commissionEligibleAt(order, holdDays) : null
 
   return {
     order: {
@@ -77,6 +100,7 @@ export default defineEventHandler(async (event) => {
     },
     shipping: orderShippingFromRecord(order),
     shipmentEvents,
+    paymentQr,
     customer: customer
       ? {
           id: customer.id,
@@ -89,7 +113,8 @@ export default defineEventHandler(async (event) => {
       ? {
           amount: Number(commissionRecord.amount ?? 0),
           rate: Number(commissionRecord.rate ?? 0),
-          status: String(commissionRecord.status ?? '')
+          status: effectiveCommissionStatus(commissionRecord, order, holdDays),
+          eligibleAt: eligibleAtMs ? new Date(eligibleAtMs).toISOString() : ''
         }
       : null,
     journal: journal.map((line) => ({

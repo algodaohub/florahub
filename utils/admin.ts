@@ -33,9 +33,30 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export const COMMISSION_STATUS_META: Record<string, { label: string; tone: BadgeTone }> = {
   pending: { label: 'Chờ duyệt', tone: 'amber' },
-  approved: { label: 'Đã duyệt', tone: 'blue' },
+  approved: { label: 'Khả dụng', tone: 'blue' },
+  processing: { label: 'Đang chi trả', tone: 'violet' },
   paid: { label: 'Đã chi trả', tone: 'green' },
   cancelled: { label: 'Đã huỷ', tone: 'rose' }
+}
+
+export const PAYOUT_STATUS_META: Record<string, { label: string; tone: BadgeTone }> = {
+  draft: { label: 'Phiếu nháp', tone: 'amber' },
+  paid: { label: 'Đã chi', tone: 'green' },
+  cancelled: { label: 'Đã huỷ', tone: 'rose' }
+}
+
+export const PAYOUT_METHOD_LABELS: Record<string, string> = {
+  bank_transfer: 'Chuyển khoản ngân hàng',
+  cash: 'Tiền mặt',
+  other: 'Khác'
+}
+
+export function payoutStatusMeta(status: string) {
+  return PAYOUT_STATUS_META[status] ?? { label: status || '—', tone: 'gray' as BadgeTone }
+}
+
+export function payoutMethodLabel(method: string) {
+  return PAYOUT_METHOD_LABELS[method] ?? (method ? method : 'Chưa xác định')
 }
 
 export function commissionStatusMeta(status: string) {

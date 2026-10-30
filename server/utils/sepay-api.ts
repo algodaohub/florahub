@@ -1,5 +1,6 @@
 import type { PbRecord } from './pocketbase'
 import { pbFirst, pbQuote, pbUpdate } from './pocketbase'
+import { syncCommissionAtPayment } from './affiliate-commission'
 import {
   readPaymentSettings,
   saveBankAccountsSnapshot,
@@ -245,6 +246,7 @@ export async function reconcileOrder(order: PbRecord, options: { force?: boolean
         sepay_transaction_id: transaction.id,
         paid_at: new Date().toISOString()
       })
+      await syncCommissionAtPayment({ ...fresh, payment_status: 'paid' }).catch(() => undefined)
       console.info('[sepay-api] đã đối soát thanh toán', {
         order: fresh.id,
         transactionId: transaction.id,

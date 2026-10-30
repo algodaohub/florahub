@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrderDetail } from '~/types'
+import { vatRateLabel } from '~/utils/accounting'
 
 const props = defineProps<{ order: OrderDetail }>()
 
@@ -197,10 +198,6 @@ function scrollToProducts() {
             <dt class="text-muted">Tạm tính</dt>
             <dd>{{ formatVnd(order.subtotal) }}</dd>
           </div>
-          <div class="flex items-baseline justify-between gap-4">
-            <dt class="text-muted">Thuế (VAT)</dt>
-            <dd>{{ formatVnd(order.taxTotal) }}</dd>
-          </div>
           <div v-if="order.discountTotal > 0" class="flex items-baseline justify-between gap-4">
             <dt class="text-muted">Giảm giá</dt>
             <dd class="text-discount">-{{ formatVnd(order.discountTotal) }}</dd>
@@ -209,11 +206,17 @@ function scrollToProducts() {
             <dt class="text-muted">Phí giao hàng</dt>
             <dd>{{ formatVnd(order.shippingTotal) }}</dd>
           </div>
+          <div v-if="order.taxTotal > 0" class="flex items-baseline justify-between gap-4">
+            <dt class="t-meta text-muted">Trong đó VAT ({{ vatRateLabel(order.taxRate) }})</dt>
+            <dd class="t-meta text-muted">{{ formatVnd(order.taxTotal) }}</dd>
+          </div>
         </dl>
 
         <div class="flex items-baseline justify-between gap-4 border-t border-hairline/60 py-3.5">
           <p class="t-section font-semibold">Tổng thanh toán</p>
           <p class="t-page font-semibold text-primary">{{ formatVnd(order.total) }}</p>
+        </div>
+        <p v-if="order.taxTotal > 0" class="t-micro text-muted">Giá đã bao gồm VAT, không cộng thêm khi thanh toán.</p>
         </div>
       </div>
     </section>

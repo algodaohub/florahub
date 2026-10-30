@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { AdminOrderDetail } from '~/types/admin'
-import { formatDateTime, formatVnd } from '~/utils/format'
+import { formatDateTime, formatOrderCode, formatVnd } from '~/utils/format'
 import { commissionStatusMeta, orderStatusMeta, paymentMethodLabel, paymentStatusMeta } from '~/utils/admin'
-import { canCancelOrder, nextOrderStatuses } from '~/utils/order-state'
 import { invoiceStatusMeta, vatRateLabel } from '~/utils/accounting'
+import { buildVietQrUrl, formatBankAccount } from '~/utils/payments'
 
 definePageMeta({ layout: 'admin', middleware: 'admin', title: 'Chi tiết đơn hàng' })
 
@@ -52,13 +52,6 @@ const STEPS = [
 ]
 const stepIndex = computed(() => STEPS.findIndex((step) => step.key === order.value?.status))
 
-const nextStatuses = computed(() => nextOrderStatuses(order.value?.status))
-const canCancel = computed(
-  () =>
-    canCancelOrder(order.value?.status) &&
-    order.value?.paymentStatus !== 'paid' &&
-    order.value?.status !== 'cancelled'
-)
 const canMarkPaid = computed(
   () =>
     Boolean(order.value) &&
@@ -66,6 +59,35 @@ const canMarkPaid = computed(
     ['', 'pending', 'cod'].includes(order.value?.paymentStatus ?? '')
 )
 const canRefund = computed(() => order.value?.paymentStatus === 'paid')
+
+const paymentQr = computed(() => data.value?.paymentQr ?? null)
+const transferNote = computed(() => formatOrderCode(order.value?.id ?? ''))
+const qrUrl = computed(() =>
+  paymentQr.value
+    ? buildVietQrUrl({ qr: paymentQr.value }, { amount: order.value?.total, addInfo: transferNote.value })
+    : ''
+)
+const showQr = computed(
+  () =>
+    Boolean(paymentQr.value) &&
+    order.value?.paymentMethod === 'qr' &&
+    !['paid', 'refunded'].includes(order.value?.paymentStatus ?? '') &&
+    order.value?.status !== 'cancelled'
+)
+const qrFailed = ref(false)
+const copiedField = ref('')
+async function copyText(label: string, value: string) {
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+    copiedField.value = label
+    setTimeout(() => {
+      copiedField.value = ''
+    }, 1600)
+  } catch {
+    flash('Không sao chép được nội dung', 'error')
+  }
+}
 
 const busy = ref(false)
 const message = ref('')
@@ -157,38 +179,31 @@ async function markPaid() {
   flash('Đã ghi nhận thanh toán.')
 }
 
-async function advance(status: string) {
-  if (busy.value) return
-  const result = await request<{ warning?: string }>(`/api/admin/orders/${id}`, {
-    method: 'PATCH',
-    body: { status }
-  })
-  if (!result) return
-  await refresh()
-  warning.value = result.warning ?? ''
-  flash(`Đã chuyển đơn sang "${orderStatusMeta(status).label}".`)
-}
-
-const confirmCancel = ref(false)
-async function cancelOrder() {
-  const result = await request<{ warning?: string }>(`/api/admin/orders/${id}`, {
-    method: 'PATCH',
-    body: { status: 'cancelled' }
-  })
-  confirmCancel.value = false
-  if (!result) return
-  await refresh()
-  warning.value = result.warning ?? ''
-  flash('Đã huỷ đơn hàng.')
-}
-
 const refundOpen = ref(false)
 const refundForm = reactive({ amount: 0, reason: '' })
+const refundAmountInput = ref<HTMLInputElement | null>(null)
 function openRefund() {
   refundForm.amount = order.value?.total ?? 0
   refundForm.reason = ''
   refundOpen.value = true
+  nextTick(() => refundAmountInput.value?.select())
 }
+
+watch([confirmPaid, refundOpen], ([paid, refund]) => {
+  if (!import.meta.client) return
+  document.body.classList.toggle('overflow-hidden', paid || refund)
+})
+
+function onEscape(event: KeyboardEvent) {
+  if (event.key !== 'Escape') return
+  if (refundOpen.value) refundOpen.value = false
+  else if (confirmPaid.value) confirmPaid.value = false
+}
+onMounted(() => window.addEventListener('keydown', onEscape))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onEscape)
+  document.body.classList.remove('overflow-hidden')
+})
 async function submitRefund() {
   if (!refundForm.reason.trim()) {
     flash('Vui lòng nhập lý do hoàn tiền.', 'error')
@@ -266,23 +281,43 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
           <span class="font-semibold text-slate-700">{{ formatVnd(order.total) }}</span>
         </p>
       </div>
-      <div class="flex items-center gap-2 self-start">
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
         <button
+          v-if="order && canMarkPaid"
           type="button"
-          class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-          :disabled="pending"
-          @click="refresh()"
+          class="w-full rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:opacity-50 sm:w-auto"
+          :disabled="busy"
+          @click="confirmPaid = true"
         >
-          {{ pending ? 'Đang tải…' : 'Làm mới' }}
+          Đánh dấu đã thanh toán
         </button>
-        <NuxtLink
-          v-if="order"
-          :to="`/orders/${order.id}`"
-          target="_blank"
-          class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+        <button
+          v-if="order && canRefund"
+          type="button"
+          class="w-full rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-800 disabled:opacity-50 sm:w-auto"
+          :disabled="busy"
+          @click="openRefund"
         >
-          Xem như khách ↗
-        </NuxtLink>
+          Hoàn tiền
+        </button>
+        <div class="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+            :disabled="pending"
+            @click="refresh()"
+          >
+            {{ pending ? 'Đang tải…' : 'Làm mới' }}
+          </button>
+          <NuxtLink
+            v-if="order"
+            :to="`/orders/${order.id}`"
+            target="_blank"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Xem như khách ↗
+          </NuxtLink>
+        </div>
       </div>
     </div>
 
@@ -401,53 +436,44 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
                 </tbody>
               </table>
             </div>
-
-            <dl class="space-y-1.5 border-t border-slate-200 px-4 py-3 text-sm">
-              <div class="flex justify-between text-slate-600">
-                <dt>Tạm tính</dt>
-                <dd class="tabular-nums">{{ formatVnd(order.subtotal || itemTotal) }}</dd>
-              </div>
-              <div v-if="order.discountTotal" class="flex justify-between text-slate-600">
-                <dt>Giảm giá</dt>
-                <dd class="tabular-nums text-emerald-700">−{{ formatVnd(order.discountTotal) }}</dd>
-              </div>
-              <div class="flex justify-between text-slate-600">
-                <dt>Phí giao hàng</dt>
-                <dd class="tabular-nums">{{ order.shippingTotal ? formatVnd(order.shippingTotal) : 'Miễn phí' }}</dd>
-              </div>
-              <div v-if="order.taxTotal" class="flex justify-between text-slate-500">
-                <dt>Trong đó VAT ({{ vatRateLabel(order.taxRate) }})</dt>
-                <dd class="tabular-nums">{{ formatVnd(order.taxTotal) }}</dd>
-              </div>
-              <div v-if="order.taxTotal" class="flex justify-between text-slate-500">
-                <dt>Doanh thu chưa thuế</dt>
-                <dd class="tabular-nums">{{ formatVnd(netRevenue) }}</dd>
-              </div>
-              <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold">
-                <dt>Tổng cộng</dt>
-                <dd class="tabular-nums">{{ formatVnd(order.total) }}</dd>
-              </div>
-            </dl>
           </section>
 
-          <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-semibold">Giao hàng & ghi chú</h3>
-              <span v-if="detailsDirty" class="text-[11px] font-medium text-amber-600">Chưa lưu</span>
+          <AdminOrderShippingCard
+            v-if="data?.shipping"
+            :order-id="id"
+            :shipping="data.shipping"
+            :events="data.shipmentEvents"
+            :order-status="order.status"
+            :details-dirty="detailsDirty"
+            @refresh="refresh"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <h4 class="text-sm font-semibold">Người nhận & ghi chú</h4>
+                <span v-if="detailsDirty" class="text-[11px] font-medium text-amber-600">Chưa lưu</span>
+              </div>
+              <button
+                type="button"
+                class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
+                :disabled="busy || !detailsDirty"
+                @click="saveDetails"
+              >
+                {{ busy ? 'Đang lưu…' : 'Lưu' }}
+              </button>
             </div>
-            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <div class="mt-3 grid gap-2 sm:grid-cols-2">
               <label class="block">
                 <span class="mb-1 block text-xs font-medium text-slate-600">Người nhận</span>
                 <input
                   v-model="form.shippingName"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 />
               </label>
               <label class="block">
                 <span class="mb-1 block text-xs font-medium text-slate-600">Điện thoại</span>
                 <input
                   v-model="form.shippingPhone"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 />
               </label>
               <label class="block sm:col-span-2">
@@ -455,66 +481,23 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
                 <textarea
                   v-model="form.shippingAddress"
                   rows="2"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 />
               </label>
               <label class="block sm:col-span-2">
-                <span class="mb-1 block text-xs font-medium text-slate-600">Ghi chú nội bộ</span>
+                <span class="mb-1 flex items-center gap-1 text-xs font-medium text-slate-600">
+                  Ghi chú nội bộ
+                  <span class="font-normal text-slate-400">· gửi kèm vận đơn</span>
+                </span>
                 <textarea
                   v-model="form.note"
                   rows="2"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                  class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                   placeholder="Ví dụ: khách dặn giao buổi chiều…"
                 />
               </label>
             </div>
-            <button
-              type="button"
-              class="mt-3 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
-              :disabled="busy || !detailsDirty"
-              @click="saveDetails"
-            >
-              {{ busy ? 'Đang lưu…' : 'Lưu thông tin' }}
-            </button>
-          </section>
-
-          <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-semibold">Tiếp thị liên kết</h3>
-              <AdminBadge
-                v-if="affiliate"
-                :label="affiliate.status === 'active' ? 'Đang hoạt động' : affiliate.status || '—'"
-                :tone="affiliate.status === 'active' ? 'green' : 'gray'"
-              />
-            </div>
-            <template v-if="affiliate">
-              <dl class="mt-2 divide-y divide-slate-100 text-sm">
-                <div class="flex justify-between gap-3 py-2">
-                  <dt class="text-slate-500">Mã giới thiệu</dt>
-                  <dd class="font-mono text-xs font-semibold text-violet-700">{{ affiliate.code }}</dd>
-                </div>
-                <div class="flex justify-between gap-3 py-2">
-                  <dt class="text-slate-500">Người giới thiệu</dt>
-                  <dd class="min-w-0 text-right">
-                    <p class="truncate font-medium">{{ affiliate.referrerName || '—' }}</p>
-                    <p class="truncate text-[11px] text-slate-500">{{ affiliate.referrerEmail }}</p>
-                  </dd>
-                </div>
-                <div class="flex justify-between gap-3 py-2">
-                  <dt class="text-slate-500">Tỷ lệ hoa hồng</dt>
-                  <dd class="font-medium">{{ commission?.rate ?? affiliate.rate }}%</dd>
-                </div>
-                <div v-if="commission" class="flex justify-between gap-3 py-2">
-                  <dt class="text-slate-500">Hoa hồng</dt>
-                  <dd class="flex items-center gap-2">
-                    <span class="font-semibold tabular-nums">{{ formatVnd(commission.amount) }}</span>
-                    <AdminBadge v-bind="commissionStatusMeta(commission.status)" />
-                  </dd>
-                </div>
-              </dl>
-            </template>
-            <p v-else class="mt-2 text-sm text-slate-400">Đơn này không qua affiliate.</p>
-          </section>
+          </AdminOrderShippingCard>
 
           <section
             v-if="order.status === 'completed' || order.taxInvoiceNumber"
@@ -637,6 +620,33 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
               <AdminBadge v-bind="paymentStatusMeta(order.paymentStatus)" />
             </div>
 
+            <dl class="mt-3 space-y-1.5 border-b border-slate-100 pb-3 text-sm">
+              <div class="flex justify-between text-slate-600">
+                <dt>Tạm tính</dt>
+                <dd class="tabular-nums">{{ formatVnd(order.subtotal || itemTotal) }}</dd>
+              </div>
+              <div v-if="order.discountTotal" class="flex justify-between text-slate-600">
+                <dt>Giảm giá</dt>
+                <dd class="tabular-nums text-emerald-700">−{{ formatVnd(order.discountTotal) }}</dd>
+              </div>
+              <div class="flex justify-between text-slate-600">
+                <dt>Phí giao hàng</dt>
+                <dd class="tabular-nums">{{ order.shippingTotal ? formatVnd(order.shippingTotal) : 'Miễn phí' }}</dd>
+              </div>
+              <div v-if="order.taxTotal" class="flex justify-between text-slate-500">
+                <dt>Trong đó VAT ({{ vatRateLabel(order.taxRate) }})</dt>
+                <dd class="tabular-nums">{{ formatVnd(order.taxTotal) }}</dd>
+              </div>
+              <div v-if="order.taxTotal" class="flex justify-between text-slate-500">
+                <dt>Doanh thu chưa thuế</dt>
+                <dd class="tabular-nums">{{ formatVnd(netRevenue) }}</dd>
+              </div>
+              <div class="flex justify-between border-t border-slate-100 pt-2 text-base font-semibold">
+                <dt>Tổng cộng</dt>
+                <dd class="tabular-nums">{{ formatVnd(order.total) }}</dd>
+              </div>
+            </dl>
+
             <dl class="mt-3 space-y-1.5 text-sm">
               <div class="flex justify-between gap-3">
                 <dt class="text-slate-500">Phương thức</dt>
@@ -666,7 +676,7 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
             </dl>
 
             <p v-if="order.paymentStatus === 'paid'" class="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
-              Đã thanh toán — không thể chuyển về chờ thanh toán. Chỉ có thể hoàn tiền.
+              Đã thanh toán — chỉ có thể hoàn tiền.
             </p>
             <p
               v-else-if="order.paymentStatus === 'refunded'"
@@ -678,175 +688,129 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
               v-else-if="order.paymentStatus === 'pending'"
               class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800"
             >
-              Khách chưa thanh toán. Hệ thống tự xác nhận khi tiền về; hoặc đánh dấu thủ công bên dưới.
+              {{
+                showQr
+                  ? 'Khách chưa thanh toán — quét QR bên dưới hoặc đánh dấu thủ công khi tiền về.'
+                  : 'Khách chưa thanh toán. Đánh dấu thủ công khi tiền về.'
+              }}
             </p>
 
-            <template v-if="canMarkPaid">
-              <button
-                v-if="!confirmPaid"
-                type="button"
-                class="mt-3 w-full rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
-                :disabled="busy"
-                @click="confirmPaid = true"
-              >
-                Đánh dấu đã thanh toán
-              </button>
-              <div v-else class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                <p class="text-[11px] text-emerald-800">
-                  Xác nhận đã nhận {{ formatVnd(order.total) }}? Sau bước này không thể chuyển về chờ thanh toán.
+            <div v-if="showQr" class="mt-3">
+              <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
+                <img
+                  v-if="qrUrl && !qrFailed"
+                  :src="qrUrl"
+                  alt="Mã QR chuyển khoản"
+                  width="200"
+                  height="200"
+                  loading="lazy"
+                  class="mx-auto h-48 w-48 rounded-lg bg-white object-contain"
+                  @error="qrFailed = true"
+                />
+                <p v-else class="py-6 text-[11px] text-slate-500">
+                  Không tải được mã QR. Chuyển khoản theo thông tin bên dưới.
                 </p>
-                <div class="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                    :disabled="busy"
-                    @click="markPaid"
-                  >
-                    Xác nhận
-                  </button>
-                  <button
-                    type="button"
-                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
-                    @click="confirmPaid = false"
-                  >
-                    Bỏ
-                  </button>
-                </div>
+                <p class="mt-1 text-[11px] text-slate-500">Quét mã để thanh toán đúng số tiền</p>
               </div>
-            </template>
-
-            <template v-if="canRefund">
-              <button
-                v-if="!refundOpen"
-                type="button"
-                class="mt-3 w-full rounded-lg border border-violet-200 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50"
-                :disabled="busy"
-                @click="openRefund"
-              >
-                Hoàn tiền
-              </button>
-              <div v-else class="mt-3 rounded-lg border border-violet-200 bg-violet-50/60 p-3">
-                <label class="block">
-                  <span class="mb-1 block text-[11px] font-medium text-violet-800">Số tiền hoàn</span>
-                  <input
-                    v-model.number="refundForm.amount"
-                    type="number"
-                    min="1"
-                    :max="order.total"
-                    class="w-full rounded-lg border border-violet-200 px-3 py-1.5 text-sm outline-none focus:border-violet-500"
-                  />
-                </label>
-                <label class="mt-2 block">
-                  <span class="mb-1 block text-[11px] font-medium text-violet-800">Lý do</span>
-                  <input
-                    v-model="refundForm.reason"
-                    class="w-full rounded-lg border border-violet-200 px-3 py-1.5 text-sm outline-none focus:border-violet-500"
-                    placeholder="Ví dụ: khách trả hàng, sai mẫu…"
-                  />
-                </label>
-                <p class="mt-1 text-[10px] text-violet-700">
-                  Hoàn toàn phần sẽ huỷ hoá đơn (giữ số). Bút toán 5212/3331 được ghi tự động.
-                </p>
-                <div class="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    class="rounded-lg bg-violet-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                    :disabled="busy"
-                    @click="submitRefund"
-                  >
-                    Xác nhận hoàn tiền
-                  </button>
-                  <button
-                    type="button"
-                    class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
-                    @click="refundOpen = false"
-                  >
-                    Bỏ
-                  </button>
+              <dl v-if="paymentQr" class="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200 px-3 text-sm">
+                <div class="flex justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Ngân hàng</dt>
+                  <dd class="text-right font-medium">{{ paymentQr.bankName || paymentQr.bankId }}</dd>
                 </div>
-              </div>
-            </template>
+                <div class="flex items-center justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Số tài khoản</dt>
+                  <dd class="flex min-w-0 items-center gap-1.5">
+                    <span class="truncate font-medium">{{ formatBankAccount(paymentQr.accountNo) }}</span>
+                    <button
+                      type="button"
+                      class="shrink-0 text-[11px] font-semibold text-emerald-700 hover:underline"
+                      @click="copyText('account', paymentQr.accountNo)"
+                    >
+                      {{ copiedField === 'account' ? 'Đã chép' : 'Chép' }}
+                    </button>
+                  </dd>
+                </div>
+                <div v-if="paymentQr.accountName" class="flex justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Chủ tài khoản</dt>
+                  <dd class="truncate text-right font-medium">{{ paymentQr.accountName }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Nội dung</dt>
+                  <dd class="flex min-w-0 items-center gap-1.5">
+                    <span class="truncate font-mono text-xs font-semibold">{{ transferNote }}</span>
+                    <button
+                      type="button"
+                      class="shrink-0 text-[11px] font-semibold text-emerald-700 hover:underline"
+                      @click="copyText('note', transferNote)"
+                    >
+                      {{ copiedField === 'note' ? 'Đã chép' : 'Chép' }}
+                    </button>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <p
+              v-else-if="
+                order.paymentMethod === 'sepay' && !['paid', 'refunded'].includes(order.paymentStatus)
+              "
+              class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600"
+            >
+              Khách thanh toán qua cổng SePay. Dùng "Xem như khách" để mở lại trang thanh toán của đơn.
+            </p>
+            <p
+              v-else-if="
+                order.paymentMethod === 'qr' &&
+                !paymentQr &&
+                !['paid', 'refunded'].includes(order.paymentStatus) &&
+                order.status !== 'cancelled'
+              "
+              class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-800"
+            >
+              Chưa cấu hình tài khoản nhận chuyển khoản.
+              <NuxtLink to="/admin/payments" class="font-semibold underline">Cấu hình ngay</NuxtLink>
+            </p>
           </section>
-
-          <AdminOrderShippingCard
-            v-if="data?.shipping"
-            :order-id="id"
-            :shipping="data.shipping"
-            :events="data.shipmentEvents"
-            :order-status="order.status"
-            :payment-status="order.paymentStatus"
-            :shipping-total="order.shippingTotal"
-            @refresh="refresh"
-          />
 
           <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div class="flex items-center justify-between">
-              <h3 class="text-sm font-semibold">Xử lý đơn</h3>
-              <span v-if="order.status === 'completed'" class="text-[11px] font-semibold text-emerald-700">
-                Đã hoàn tất
-              </span>
+              <h3 class="text-sm font-semibold">Tiếp thị liên kết</h3>
+              <AdminBadge
+                v-if="affiliate"
+                :label="affiliate.status === 'active' ? 'Đang hoạt động' : affiliate.status || '—'"
+                :tone="affiliate.status === 'active' ? 'green' : 'gray'"
+              />
             </div>
-
-            <template v-if="order.status === 'cancelled'">
-              <p class="mt-2 text-sm text-slate-500">Đơn đã huỷ, không có thao tác tiếp.</p>
-            </template>
-            <template v-else-if="order.status === 'completed'">
-              <p class="mt-2 text-sm text-slate-500">
-                Doanh thu đã ghi nhận. Dùng Hoàn tiền nếu khách trả hàng.
-              </p>
-            </template>
-            <template v-else>
-              <div class="mt-3 space-y-2">
-                <button
-                  v-for="next in nextStatuses"
-                  :key="next"
-                  type="button"
-                  class="w-full rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  :disabled="busy || (next === 'completed' && order.paymentStatus === 'pending')"
-                  @click="advance(next)"
-                >
-                  Chuyển sang {{ orderStatusMeta(next).label }}
-                </button>
-              </div>
-              <p v-if="order.paymentStatus === 'pending'" class="mt-2 text-[11px] text-amber-700">
-                Cần thu tiền trước khi hoàn tất đơn.
-              </p>
-
-              <div v-if="canCancel" class="mt-3 border-t border-slate-100 pt-3">
-                <button
-                  v-if="!confirmCancel"
-                  type="button"
-                  class="w-full rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                  :disabled="busy"
-                  @click="confirmCancel = true"
-                >
-                  Huỷ đơn
-                </button>
-                <div v-else class="rounded-lg border border-rose-200 bg-rose-50 p-3">
-                  <p class="text-[11px] text-rose-700">Huỷ đơn này? Thao tác không tự hoàn kho.</p>
-                  <div class="mt-2 flex gap-2">
-                    <button
-                      type="button"
-                      class="rounded-lg bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                      :disabled="busy"
-                      @click="cancelOrder"
-                    >
-                      Xác nhận huỷ
-                    </button>
-                    <button
-                      type="button"
-                      class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
-                      @click="confirmCancel = false"
-                    >
-                      Bỏ
-                    </button>
-                  </div>
+            <template v-if="affiliate">
+              <dl class="mt-2 divide-y divide-slate-100 text-sm">
+                <div class="flex justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Mã giới thiệu</dt>
+                  <dd class="font-mono text-xs font-semibold text-violet-700">{{ affiliate.code }}</dd>
                 </div>
-              </div>
-              <p v-else-if="order.paymentStatus === 'paid'" class="mt-3 text-[11px] text-slate-400">
-                Đã thanh toán — hoàn tiền trước nếu cần huỷ đơn.
-              </p>
+                <div class="flex justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Người giới thiệu</dt>
+                  <dd class="min-w-0 text-right">
+                    <p class="truncate font-medium">{{ affiliate.referrerName || '—' }}</p>
+                    <p class="truncate text-[11px] text-slate-500">{{ affiliate.referrerEmail }}</p>
+                  </dd>
+                </div>
+                <div class="flex justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Tỷ lệ hoa hồng</dt>
+                  <dd class="font-medium">{{ commission?.rate ?? affiliate.rate }}%</dd>
+                </div>
+                <div v-if="commission" class="flex justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Hoa hồng</dt>
+                  <dd class="flex items-center gap-2">
+                    <span class="font-semibold tabular-nums">{{ formatVnd(commission.amount) }}</span>
+                    <AdminBadge v-bind="commissionStatusMeta(commission.status)" />
+                  </dd>
+                </div>
+                <div v-if="commission?.eligibleAt && commission.status === 'pending'" class="flex justify-between gap-3 py-2">
+                  <dt class="text-slate-500">Dự kiến duyệt</dt>
+                  <dd class="font-medium">{{ formatDateTime(commission.eligibleAt) }}</dd>
+                </div>
+              </dl>
             </template>
+            <p v-else class="mt-2 text-sm text-slate-400">Đơn này không qua affiliate.</p>
           </section>
 
           <section class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -877,6 +841,94 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
         </div>
       </div>
     </template>
+
+    <div
+      v-if="order && confirmPaid"
+      class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-paid-title"
+      @click.self="confirmPaid = false"
+    >
+      <div class="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+        <h3 id="confirm-paid-title" class="text-base font-semibold">Xác nhận thanh toán</h3>
+        <p class="mt-2 text-sm text-slate-600">
+          Ghi nhận đã nhận <span class="font-semibold text-slate-900">{{ formatVnd(order.total) }}</span> cho đơn
+          {{ orderCode(order.id) }}? Sau bước này không thể chuyển về chờ thanh toán.
+        </p>
+        <div class="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            @click="confirmPaid = false"
+          >
+            Bỏ
+          </button>
+          <button
+            type="button"
+            class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+            :disabled="busy"
+            @click="markPaid"
+          >
+            Xác nhận đã thanh toán
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="order && refundOpen"
+      class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="refund-title"
+      @click.self="refundOpen = false"
+    >
+      <div class="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
+        <h3 id="refund-title" class="text-base font-semibold">Hoàn tiền đơn {{ orderCode(order.id) }}</h3>
+        <p class="mt-1 text-[11px] text-slate-500">
+          Đã thanh toán {{ formatVnd(order.total) }}. Hoàn toàn phần sẽ huỷ hoá đơn (giữ số), bút toán 5212/3331 ghi tự động.
+        </p>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-slate-600">Số tiền hoàn</span>
+            <input
+              ref="refundAmountInput"
+              v-model.number="refundForm.amount"
+              type="number"
+              min="1"
+              :max="order.total"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+            />
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-xs font-medium text-slate-600">Lý do</span>
+            <input
+              v-model="refundForm.reason"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+              placeholder="Ví dụ: khách trả hàng, sai mẫu…"
+            />
+          </label>
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            @click="refundOpen = false"
+          >
+            Bỏ
+          </button>
+          <button
+            type="button"
+            class="rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+            :disabled="busy"
+            @click="submitRefund"
+          >
+            Xác nhận hoàn tiền
+          </button>
+        </div>
+      </div>
+    </div>
 
     <AdminInvoiceDetail :order-id="id" :open="invoiceDetailOpen" @close="invoiceDetailOpen = false" />
   </div>

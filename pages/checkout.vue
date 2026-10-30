@@ -6,6 +6,8 @@ const { items: cartItems, refresh, ensure } = useCart()
 await ensure()
 
 const { config } = useSite()
+// Khung cửa hàng có thể hẹp hơn viewport (shell mobile), nên bố cục 2 cột chỉ bật khi khung đủ rộng.
+const wideShell = computed(() => config.value.layout.shellWidth >= 960)
 
 const { data: shippingConfig } = await useFetch<{ policy: ShippingPublicPolicy; liveQuotes: boolean }>(
   '/api/shipping/config',
@@ -27,9 +29,22 @@ const selectedIds = computed(() => {
 const items = computed(() =>
   selectedIds.value ? cartItems.value.filter((item) => selectedIds.value?.includes(item.id)) : cartItems.value
 )
+const itemsExpanded = ref(false)
+const visibleItems = computed(() => (itemsExpanded.value ? items.value : items.value.slice(0, 3)))
+const hiddenItemCount = computed(() => Math.max(0, items.value.length - visibleItems.value.length))
 const subtotal = computed(() => items.value.reduce((sum, item) => sum + item.lineTotal, 0))
 const backToCart = '/cart'
 const paymentMethod = computed(() => resolvePaymentMethod(config.value.payments))
+const paymentDescription = computed(() => {
+  if (paymentMethod.value === 'qr') {
+    const bank = config.value.payments.qr.bankName
+    return `Quét mã VietQR đúng số tiền sau khi đặt hàng${bank ? ` qua ${bank}` : ''}. Hệ thống tự xác nhận khi tiền về tài khoản cửa hàng.`
+  }
+  if (paymentMethod.value === 'sepay') {
+    return 'Cổng SePay hỗ trợ thẻ quốc tế, VietQR và NAPAS. Bạn sẽ được chuyển tới cổng thanh toán an toàn sau khi đặt hàng.'
+  }
+  return 'Thanh toán trực tiếp cho người giao hàng khi nhận đơn.'
+})
 
 const { user, isLoggedIn } = useAuth()
 const { data: addressData, refresh: refreshAddresses } = await useFetch<{ addresses: Address[] }>(
@@ -54,6 +69,7 @@ function selectDefaultAddress() {
 
 const promoCode = useCookie<string | null>('promo_code', { maxAge: 60 * 60 * 24 * 7 })
 const promoInput = ref(promoCode.value ?? '')
+const promoOpen = ref(false)
 const promoMeta = ref<{ code: string; type: string; value: number } | null>(null)
 const promoError = ref('')
 const promoPending = ref(false)
@@ -120,6 +136,27 @@ const shippingDisplay = computed(() => {
   if (quote.value?.mode === 'none') return 'Không cần giao'
   if (!selectedShippingOption.value) return '—'
   return shipping.value === 0 ? 'Miễn phí' : formatVnd(shipping.value)
+})
+
+const shippingExpanded = ref(false)
+const shippingNeedsDetails = computed(() => {
+  if (!hasQuoteAddress.value || quotePending.value || quoteError.value) return true
+  const current = quote.value
+  if (!current || current.mode !== 'live') return true
+  if (current.address?.resolution === 'ambiguous') return true
+  return current.options.length === 0
+})
+const showShippingSummary = computed(() => !shippingNeedsDetails.value && !shippingExpanded.value)
+const summaryShippingOption = computed(() => selectedShippingOption.value ?? quote.value?.options[0] ?? null)
+const canChangeShipping = computed(
+  () => Boolean(shippingPolicy.value?.allowCustomerChoice) && (quote.value?.optionCount ?? 0) > 1
+)
+const shippingHint = computed(() => {
+  const current = quote.value
+  if (!current) return ''
+  if (current.freeShipping.applied) return current.message || 'Đơn hàng được miễn phí giao hàng.'
+  const remaining = Number(current.freeShipping.remaining ?? 0)
+  return remaining > 0 ? `Mua thêm ${formatVnd(remaining)} để được miễn phí giao.` : ''
 })
 
 const quoteSignature = computed(() =>
@@ -263,6 +300,11 @@ function removePromo() {
   promoError.value = ''
 }
 
+function clearPromo() {
+  removePromo()
+  promoOpen.value = false
+}
+
 async function submitOrder() {
   errorMessage.value = ''
   if (isLoggedIn.value && !selectedAddress.value) {
@@ -372,7 +414,7 @@ useHead({ title: 'Đặt hàng' })
 <template>
   <div>
     <PageHeader title="Đặt hàng" :subtitle="`${items.length} sản phẩm`" back :back-to="backToCart" />
-    <div class="container-page pb-[calc(7rem+env(safe-area-inset-bottom))] pt-3">
+    <div class="container-page pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-3 lg:pb-10">
 
     <div v-if="!items.length" class="card flex flex-col items-center px-6 py-12 text-center">
       <span class="grid h-16 w-16 place-items-center rounded-full bg-primary-soft text-primary">
@@ -383,184 +425,180 @@ useHead({ title: 'Đặt hàng' })
       <NuxtLink to="/categories" class="btn-primary mt-5 px-6">Xem danh mục</NuxtLink>
     </div>
 
-    <form v-else class="space-y-3" @submit.prevent="submitOrder">
-      <section class="card p-3.5">
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="t-section">Đơn hàng của bạn</h2>
-          <span class="t-micro text-muted">{{ items.length }} sản phẩm</span>
-        </div>
-        <ul class="mt-3 space-y-3">
-          <li v-for="item in items" :key="item.id" class="flex gap-3">
-            <img :src="item.product.thumbnail" :alt="item.product.title" width="56" height="56" loading="lazy" decoding="async" class="h-14 w-14 rounded-lg object-cover" />
-            <div class="min-w-0 flex-1">
-              <p class="t-body line-clamp-2 font-semibold">{{ item.product.title }}</p>
-              <p class="t-meta text-muted">{{ item.variant.title }} × {{ item.quantity }}</p>
-            </div>
-            <p class="t-meta font-medium">{{ formatVnd(item.lineTotal) }}</p>
-          </li>
-        </ul>
-
-        <div class="mt-4 border-t border-hairline/70 pt-3">
-          <div class="flex items-center justify-between">
-            <h3 class="t-meta font-medium">Mã giảm giá</h3>
-            <button v-if="promoMeta" type="button" class="t-micro font-medium text-discount" @click="removePromo">Bỏ mã</button>
-          </div>
-          <div v-if="!promoMeta" class="mt-2 flex gap-2">
-            <input v-model="promoInput" type="text" class="field py-2 t-meta uppercase" placeholder="Nhập mã giảm giá" autocomplete="off" @keydown.enter.prevent="applyPromo" />
-            <button type="button" class="btn-primary shrink-0 px-4 py-2 t-meta" :disabled="promoPending" @click="applyPromo">
-              {{ promoPending ? '...' : 'Áp dụng' }}
-            </button>
-          </div>
-          <p v-else class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1.5 t-micro font-semibold text-primary">
-            <AppIcon name="check" size="h-3.5 w-3.5" />
-            {{ promoMeta.code }} · -{{ formatVnd(discount) }}
-          </p>
-          <p v-if="promoError" class="mt-2 t-micro text-discount">{{ promoError }}</p>
-        </div>
-      </section>
-
-      <section class="card p-3.5">
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="t-section">Địa chỉ giao hàng</h2>
-          <button
-            v-if="isLoggedIn && selectedAddress"
-            type="button"
-            class="t-micro font-medium text-primary"
-            @click="openAddressSheet"
-          >
-            Thay đổi
-          </button>
-        </div>
-
+    <form
+      v-else
+      class="grid gap-3"
+      :class="wideShell ? 'lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-5' : ''"
+      @submit.prevent="submitOrder"
+    >
+      <!-- Địa chỉ nhận hàng -->
+      <section
+        class="card p-3.5 lg:p-4"
+        :class="wideShell ? 'lg:col-start-1 lg:row-start-1' : 'order-1'"
+      >
         <template v-if="isLoggedIn">
-          <div v-if="selectedAddress" class="mt-3 flex items-start gap-2.5 rounded-xl border border-hairline/70 bg-white/60 p-3">
+          <div v-if="selectedAddress" class="flex items-start gap-2.5">
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-soft text-primary">
               <AppIcon name="pin" size="h-4 w-4" />
             </span>
             <div class="min-w-0 flex-1">
-              <div class="flex flex-wrap items-center gap-2">
-                <p class="t-body font-semibold">{{ selectedAddress.recipient }} · {{ selectedAddress.phone }}</p>
+              <p class="t-micro font-medium text-muted">Giao đến</p>
+              <p class="mt-0.5 flex flex-wrap items-center gap-1.5 t-body font-semibold">
+                {{ selectedAddress.recipient }} · {{ selectedAddress.phone }}
                 <span
                   v-if="selectedAddress.isDefault"
                   class="rounded-full bg-primary-soft px-2 py-0.5 t-micro font-semibold text-primary"
                 >
                   Mặc định
                 </span>
-                <span class="rounded-full bg-paper-deep px-2 py-0.5 t-micro font-medium text-muted">
-                  {{ selectedAddress.label }}
-                </span>
-              </div>
-              <p class="mt-1 t-meta text-muted">{{ formatAddress(selectedAddress) }}</p>
+              </p>
+              <p class="mt-0.5 t-meta text-muted">{{ formatAddress(selectedAddress) }}</p>
             </div>
+            <button
+              type="button"
+              class="shrink-0 rounded-lg px-1.5 py-1 t-micro font-semibold text-primary active:bg-primary-soft"
+              @click="openAddressSheet"
+            >
+              Thay đổi
+            </button>
           </div>
 
-          <div v-else class="mt-3 rounded-xl border border-dashed border-hairline bg-white/50 p-4 text-center">
-            <p class="t-meta text-muted">Bạn chưa có địa chỉ giao hàng.</p>
-            <button type="button" class="btn-primary mt-2 px-4 py-2 t-meta" @click="openAddressSheet">
-              Thêm địa chỉ
+          <div v-else class="flex items-center gap-2.5">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-soft text-primary">
+              <AppIcon name="pin" size="h-4 w-4" />
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="t-body font-semibold">Bạn chưa có địa chỉ giao hàng</p>
+              <p class="t-micro text-muted">Thêm địa chỉ để tính phí và giao hàng.</p>
+            </div>
+            <button type="button" class="btn-primary shrink-0 px-3 py-2 t-micro" @click="openAddressSheet">
+              Thêm
             </button>
           </div>
         </template>
 
-        <div v-else class="mt-3 space-y-3">
-          <label class="flex flex-col gap-1 t-meta">
-            <span class="font-medium">Họ tên <span class="text-discount">*</span></span>
-            <input v-model="form.name" class="field py-2.5" autocomplete="name" required />
-          </label>
-          <label class="flex flex-col gap-1 t-meta">
-            <span class="font-medium">Số điện thoại <span class="text-discount">*</span></span>
-            <input v-model="form.phone" class="field py-2.5" inputmode="tel" autocomplete="tel" required />
-          </label>
-          <label class="flex flex-col gap-1 t-meta">
-            <span class="font-medium">Email <span class="text-discount">*</span></span>
-            <input v-model="form.email" type="email" class="field py-2.5" autocomplete="email" required />
-          </label>
-          <AddressRegionFields
-            v-model:city="guestAddress.city"
-            v-model:ward="guestAddress.ward"
-            v-model:city-code="guestAddress.cityCode"
-            v-model:ward-code="guestAddress.wardCode"
-            required
-            id-prefix="guest-region"
-          />
-          <label class="flex flex-col gap-1 t-meta">
-            <span class="font-medium">Địa chỉ chi tiết <span class="text-discount">*</span></span>
-            <input
-              v-model="guestAddress.line1"
-              class="field py-2.5"
-              placeholder="Số nhà, đường"
-              autocomplete="street-address"
-              required
-            />
-          </label>
-        </div>
-      </section>
-
-      <section class="card p-3.5">
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="t-section">Vận chuyển</h2>
-          <span
-            v-if="shippingPolicy?.allowCustomerChoice && (quote?.optionCount ?? 0) > 1"
-            class="t-micro text-muted"
-          >
-            {{ quote?.optionCount }} lựa chọn
-          </span>
-        </div>
-        <ShippingQuoteBlock
-          v-model="selectedShippingOptionId"
-          v-model:district-code="manualDistrictCode"
-          class="mt-3"
-          :quote="quote"
-          :policy="shippingPolicy"
-          :loading="quotePending"
-          :error="quoteError"
-          :has-address="hasQuoteAddress"
-          @reload="requestQuote"
-        />
-      </section>
-
-      <section class="card p-3.5">
-        <h2 class="t-section">Ghi chú</h2>
-        <textarea
-          v-model="form.note"
-          rows="3"
-          class="field mt-3 rounded-2xl py-2.5"
-          placeholder="Thời gian giao, yêu cầu đóng gói..."
-        />
-      </section>
-
-      <section class="card p-3.5">
-        <h2 class="t-section">Thanh toán</h2>
-        <div
-          class="mt-3 flex items-start gap-2.5 rounded-xl border px-3 py-3"
-          :class="paymentMethod !== 'cod' ? 'border-primary/30 bg-primary-soft/50' : 'border-hairline/70 bg-white/60'"
-        >
-          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/80 text-primary">
-            <AppIcon :name="paymentMethod === 'qr' ? 'barcode' : paymentMethod === 'sepay' ? 'wallet' : 'truck'" size="h-4 w-4" />
-          </span>
-          <div class="min-w-0 flex-1">
-            <p class="flex flex-wrap items-center gap-2 t-body font-semibold">
-              {{ paymentMethodLabels[paymentMethod] }}
-              <span class="rounded-full bg-primary-soft px-2 py-0.5 t-micro font-semibold text-primary">Mặc định</span>
-            </p>
-            <p v-if="paymentMethod === 'qr'" class="mt-1 t-micro leading-snug text-muted">
-              Quét mã VietQR đúng số tiền sau khi đặt hàng<template v-if="config.payments.qr.bankName">
-                qua {{ config.payments.qr.bankName }}</template
-              >. Hệ thống tự xác nhận khi tiền về tài khoản cửa hàng.
-            </p>
-            <p v-else-if="paymentMethod === 'sepay'" class="mt-1 t-micro leading-snug text-muted">
-              Cổng SePay có thu phí giao dịch, hỗ trợ thẻ quốc tế, VietQR và NAPAS. Bạn sẽ được chuyển tới cổng thanh
-              toán an toàn sau khi đặt hàng.
-            </p>
-            <p v-else class="mt-1 t-micro leading-snug text-muted">
-              Thanh toán trực tiếp cho người giao hàng khi nhận đơn.
-            </p>
+        <template v-else>
+          <div class="flex items-center gap-2.5">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-soft text-primary">
+              <AppIcon name="pin" size="h-4 w-4" />
+            </span>
+            <div>
+              <p class="t-micro font-medium text-muted">Giao đến</p>
+              <p class="t-body font-semibold">Thông tin người nhận</p>
+            </div>
           </div>
-        </div>
+          <div class="mt-3 grid gap-2.5 sm:grid-cols-2">
+            <label class="flex flex-col gap-1 t-micro">
+              <span class="font-medium">Họ tên <span class="text-discount">*</span></span>
+              <input v-model="form.name" class="field py-2 t-meta" autocomplete="name" required />
+            </label>
+            <label class="flex flex-col gap-1 t-micro">
+              <span class="font-medium">Số điện thoại <span class="text-discount">*</span></span>
+              <input v-model="form.phone" class="field py-2 t-meta" inputmode="tel" autocomplete="tel" required />
+            </label>
+            <label class="flex flex-col gap-1 t-micro sm:col-span-2">
+              <span class="font-medium">Email <span class="text-discount">*</span></span>
+              <input v-model="form.email" type="email" class="field py-2 t-meta" autocomplete="email" required />
+            </label>
+            <div class="sm:col-span-2">
+              <AddressRegionFields
+                v-model:city="guestAddress.city"
+                v-model:ward="guestAddress.ward"
+                v-model:city-code="guestAddress.cityCode"
+                v-model:ward-code="guestAddress.wardCode"
+                dense
+                required
+                id-prefix="guest-region"
+              />
+            </div>
+            <label class="flex flex-col gap-1 t-micro sm:col-span-2">
+              <span class="font-medium">Địa chỉ chi tiết <span class="text-discount">*</span></span>
+              <input
+                v-model="guestAddress.line1"
+                class="field py-2 t-meta"
+                placeholder="Số nhà, đường"
+                autocomplete="street-address"
+                required
+              />
+            </label>
+          </div>
+        </template>
       </section>
 
-      <section class="card p-3.5">
-        <dl class="space-y-2 t-meta">
+      <!-- Tóm tắt đơn hàng -->
+      <aside
+        class="card p-3.5 lg:p-4"
+        :class="wideShell ? 'lg:order-none lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:sticky lg:top-3 lg:self-start' : 'order-2'"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="t-section">Đơn hàng</h2>
+          <span class="t-micro text-muted">{{ items.length }} sản phẩm</span>
+        </div>
+
+        <ul class="mt-1 divide-y divide-hairline/60">
+          <li v-for="item in visibleItems" :key="item.id" class="flex gap-2.5 py-2.5">
+            <img
+              :src="item.product.thumbnail"
+              :alt="item.product.title"
+              width="48"
+              height="48"
+              loading="lazy"
+              decoding="async"
+              class="h-12 w-12 shrink-0 rounded-lg object-cover"
+            />
+            <div class="min-w-0 flex-1">
+              <p class="t-meta line-clamp-2 font-medium leading-snug">{{ item.product.title }}</p>
+              <p class="mt-0.5 t-micro text-muted">{{ item.variant.title }} × {{ item.quantity }}</p>
+            </div>
+            <p class="shrink-0 t-meta font-medium">{{ formatVnd(item.lineTotal) }}</p>
+          </li>
+        </ul>
+        <button
+          v-if="hiddenItemCount"
+          type="button"
+          class="mt-1 w-full rounded-lg border border-dashed border-hairline py-1.5 t-micro font-medium text-primary active:bg-primary-soft"
+          @click="itemsExpanded = !itemsExpanded"
+        >
+          {{ itemsExpanded ? 'Thu gọn' : `Xem thêm ${hiddenItemCount} sản phẩm` }}
+        </button>
+
+        <div class="mt-2 flex items-center justify-between gap-3 border-t border-hairline/70 pt-2.5">
+          <span class="t-meta font-medium">Mã giảm giá</span>
+          <button
+            v-if="!promoMeta && !promoOpen"
+            type="button"
+            class="t-micro font-semibold text-primary"
+            @click="promoOpen = true"
+          >
+            Nhập mã
+          </button>
+          <button v-else-if="promoMeta" type="button" class="t-micro font-medium text-discount" @click="clearPromo">
+            Bỏ mã
+          </button>
+        </div>
+        <p
+          v-if="promoMeta"
+          class="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 t-micro font-semibold text-primary"
+        >
+          <AppIcon name="check" size="h-3.5 w-3.5" />
+          {{ promoMeta.code }} · -{{ formatVnd(discount) }}
+        </p>
+        <div v-if="!promoMeta && promoOpen" class="mt-2 flex gap-2">
+          <input
+            v-model="promoInput"
+            type="text"
+            class="field py-2 t-meta uppercase"
+            placeholder="Nhập mã giảm giá"
+            autocomplete="off"
+            @keydown.enter.prevent="applyPromo"
+          />
+          <button type="button" class="btn-primary shrink-0 px-3 py-2 t-micro" :disabled="promoPending" @click="applyPromo">
+            {{ promoPending ? '...' : 'Áp dụng' }}
+          </button>
+        </div>
+        <p v-if="promoError" class="mt-1.5 t-micro text-discount">{{ promoError }}</p>
+
+        <dl class="mt-2 space-y-1.5 border-t border-hairline/70 pt-2.5 t-meta">
           <div class="flex justify-between gap-3">
             <dt class="text-muted">Tạm tính</dt>
             <dd>{{ formatVnd(subtotal) }}</dd>
@@ -574,14 +612,122 @@ useHead({ title: 'Đặt hàng' })
             <dd>{{ shippingDisplay }}</dd>
           </div>
           <div class="flex justify-between gap-3 border-t border-hairline/70 pt-2">
-            <dt class="font-medium">Tổng cộng</dt>
+            <dt class="t-body font-semibold">Tổng cộng</dt>
             <dd class="t-section font-semibold text-primary">{{ formatVnd(grandTotal) }}</dd>
           </div>
         </dl>
-      </section>
+        <p v-if="config.features.taxRate > 0" class="mt-1.5 t-micro text-muted">
+          Giá đã bao gồm VAT {{ config.features.taxRate }}%, không cộng thêm khi thanh toán.
+        </p>
 
+        <p v-if="errorMessage" class="mt-3 hidden rounded-xl bg-discount/10 px-3 py-2 t-micro text-discount lg:block" role="alert">
+          {{ errorMessage }}
+        </p>
+        <button type="submit" class="btn-primary mt-3 hidden w-full py-3 lg:inline-flex" :disabled="submitting">
+          {{ submitting ? 'Đang tạo đơn…' : 'Đặt hàng' }}
+        </button>
+      </aside>
+
+      <!-- Vận chuyển, thanh toán, ghi chú -->
+      <div class="space-y-3" :class="wideShell ? 'lg:col-start-1 lg:row-start-2' : 'order-3'">
+        <section class="card p-3.5 lg:p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <AppIcon name="truck" size="h-4 w-4 text-primary" />
+              <h2 class="t-body font-semibold">Vận chuyển</h2>
+            </div>
+            <span v-if="quotePending" class="t-micro text-muted">Đang tính…</span>
+            <span v-else-if="canChangeShipping" class="t-micro text-muted">{{ quote?.optionCount }} lựa chọn</span>
+          </div>
+
+          <div v-if="showShippingSummary" class="mt-2.5 rounded-xl border border-hairline/70 bg-white/60 p-3">
+            <div class="flex items-start gap-2.5">
+              <div class="min-w-0 flex-1">
+                <p class="t-body font-semibold">
+                  {{ summaryShippingOption?.carrierName || summaryShippingOption?.carrier }}
+                  <span v-if="summaryShippingOption?.service" class="ml-1 t-micro font-medium text-muted">
+                    {{ summaryShippingOption.service }}
+                  </span>
+                </p>
+                <p v-if="summaryShippingOption?.eta && shippingPolicy?.showEta" class="mt-0.5 t-micro text-muted">
+                  {{ summaryShippingOption.eta }}
+                </p>
+                <p
+                  v-if="shippingHint"
+                  class="mt-1 t-micro"
+                  :class="quote?.freeShipping.applied ? 'text-primary' : 'text-muted'"
+                >
+                  {{ shippingHint }}
+                </p>
+              </div>
+              <div class="shrink-0 text-right">
+                <p class="t-body font-semibold" :class="summaryShippingOption?.customerFee === 0 ? 'text-primary' : ''">
+                  {{ summaryShippingOption?.customerFee === 0 ? 'Miễn phí' : formatVnd(summaryShippingOption?.customerFee ?? 0) }}
+                </p>
+                <button
+                  v-if="canChangeShipping"
+                  type="button"
+                  class="mt-0.5 t-micro font-semibold text-primary"
+                  @click="shippingExpanded = true"
+                >
+                  Đổi
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="mt-2.5">
+            <div v-if="shippingExpanded && !shippingNeedsDetails" class="mb-2 text-right">
+              <button type="button" class="t-micro font-semibold text-primary" @click="shippingExpanded = false">
+                Thu gọn
+              </button>
+            </div>
+            <ShippingQuoteBlock
+              v-model="selectedShippingOptionId"
+              v-model:district-code="manualDistrictCode"
+              :quote="quote"
+              :policy="shippingPolicy"
+              :loading="quotePending"
+              :error="quoteError"
+              :has-address="hasQuoteAddress"
+              @reload="requestQuote"
+            />
+          </div>
+        </section>
+
+        <section class="card p-3.5 lg:p-4">
+          <div class="flex items-start gap-2.5">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary-soft text-primary">
+              <AppIcon
+                :name="paymentMethod === 'qr' ? 'barcode' : paymentMethod === 'sepay' ? 'wallet' : 'truck'"
+                size="h-4 w-4"
+              />
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="t-micro text-muted">Thanh toán</p>
+              <p class="mt-0.5 t-body font-semibold">{{ paymentMethodLabels[paymentMethod] }}</p>
+              <p class="mt-0.5 t-micro leading-snug text-muted">{{ paymentDescription }}</p>
+            </div>
+            <span class="shrink-0 rounded-full bg-primary-soft px-2 py-0.5 t-micro font-semibold text-primary">
+              Mặc định
+            </span>
+          </div>
+        </section>
+
+        <section class="card p-3.5 lg:p-4">
+          <h2 class="t-body font-semibold">Ghi chú</h2>
+          <textarea
+            v-model="form.note"
+            rows="2"
+            class="field mt-2 rounded-xl py-2 t-meta"
+            placeholder="Thời gian giao, yêu cầu đóng gói… (không bắt buộc)"
+          />
+        </section>
+      </div>
+
+      <!-- Thanh đặt hàng cố định trên mobile -->
       <div
-        class="fixed inset-x-0 bottom-0 z-40 mx-auto w-full border-t border-hairline bg-paper/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-10px_30px_-20px_rgba(27,26,22,0.45)] backdrop-blur-md"
+        class="fixed inset-x-0 bottom-0 z-40 mx-auto w-full border-t border-hairline bg-paper/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-10px_30px_-20px_rgba(27,26,22,0.45)] backdrop-blur-md lg:hidden"
         :style="{ maxWidth: `${config.layout.shellWidth}px` }"
       >
         <p v-if="errorMessage" class="mb-2 rounded-xl bg-discount/10 px-3 py-1.5 t-micro text-discount" role="alert">
@@ -589,11 +735,11 @@ useHead({ title: 'Đặt hàng' })
         </p>
         <div class="flex items-center gap-3">
           <div class="min-w-0 flex-1">
-            <p class="t-micro text-muted">Tổng cộng</p>
+            <p class="t-micro text-muted">Tổng cộng · {{ items.length }} sản phẩm</p>
             <p class="t-section font-semibold leading-tight text-primary">{{ formatVnd(grandTotal) }}</p>
           </div>
           <button type="submit" class="btn-primary min-w-0 flex-1 py-3" :disabled="submitting">
-            {{ submitting ? 'Đang tạo đơn...' : 'Xác nhận đặt hàng' }}
+            {{ submitting ? 'Đang tạo đơn...' : 'Đặt hàng' }}
           </button>
         </div>
       </div>

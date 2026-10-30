@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { pbCreate, pbFirst, pbQuote, pbUpdate, type PbRecord } from '~~/server/utils/pocketbase'
 import { readPaymentSettings } from '~~/server/utils/payment-settings'
+import { syncCommissionAtPayment } from '~~/server/utils/affiliate-commission'
 
 /**
  * Webhook SePay: tự đánh dấu đơn đã thanh toán khi có tiền vào.
@@ -157,6 +158,7 @@ export default defineEventHandler(async (event) => {
     sepay_transaction_id: transactionId,
     paid_at: new Date().toISOString()
   })
+  await syncCommissionAtPayment({ ...found, payment_status: 'paid' }, event).catch(() => undefined)
 
   console.info('[sepay] đã xác nhận thanh toán', { order: found.id, amount, transactionId })
   return { success: true }

@@ -782,6 +782,43 @@ useHead({ title: 'Giao diện cửa hàng' })
             <label class="t-meta">
               <span class="text-muted">Hoa hồng CTV (%)</span>
               <input v-model.number="draft.features.affiliateCommissionRate" type="number" class="field mt-1 py-2" />
+              <span class="t-micro text-muted mt-1 block">Tỷ lệ được chốt tại thời điểm đơn hàng thanh toán.</span>
+            </label>
+            <label class="t-meta">
+              <span class="text-muted">Ghi nhận giới thiệu (ngày)</span>
+              <input v-model.number="draft.features.affiliateAttributionDays" type="number" min="1" max="365" class="field mt-1 py-2" />
+              <span class="t-micro text-muted mt-1 block">Khách click liên kết và đặt hàng trong khoảng này vẫn được tính cho CTV.</span>
+            </label>
+            <label class="t-meta">
+              <span class="text-muted">Giữ hoa hồng CTV (ngày)</span>
+              <input v-model.number="draft.features.affiliateHoldDays" type="number" min="0" max="365" class="field mt-1 py-2" />
+              <span class="t-micro text-muted mt-1 block">Đơn hoàn tất phải qua thời gian này mà không hoàn/huỷ mới được duyệt.</span>
+            </label>
+            <label class="t-meta">
+              <span class="text-muted">Hạn mức chi trả CTV (đ)</span>
+              <input
+                v-model.number="draft.features.affiliatePayoutThreshold"
+                type="number"
+                min="0"
+                step="10000"
+                class="field mt-1 py-2"
+              />
+              <span class="t-micro text-muted mt-1 block">
+                Cộng dồn hoa hồng đã duyệt (gồm GTGT, không gồm phí vận chuyển) đến hạn mức này mới lập phiếu chi. 0 = không giới hạn.
+              </span>
+            </label>
+            <label class="flex items-start gap-2 t-meta">
+              <input
+                v-model="draft.features.affiliateAutoReconcile"
+                type="checkbox"
+                class="mt-1 h-4 w-4 rounded border-hairline text-primary focus:ring-primary"
+              />
+              <span>
+                Tự động đối soát hàng tháng
+                <span class="t-micro text-muted mt-0.5 block">
+                  Đầu mỗi tháng hệ thống duyệt khoản đến hạn và lập phiếu chi nháp khi đủ hạn mức; admin vẫn xác nhận đã chi.
+                </span>
+              </span>
             </label>
             <label class="t-meta">
               <span class="text-muted">SL tối thiểu mỗi đơn (0 = không giới hạn)</span>

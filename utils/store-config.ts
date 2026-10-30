@@ -54,18 +54,6 @@ const clampDecimal = (value: unknown, min: number, max: number, fallback: number
   return Math.min(max, Math.max(min, Math.round(parsed * 10) / 10))
 }
 
-const carrierList = (value: unknown): string[] => {
-  if (!Array.isArray(value)) return []
-  const seen = new Set<string>()
-  for (const item of value) {
-    const code = String(item ?? '').trim().toLowerCase()
-    if (!code || code.length > 40) continue
-    seen.add(code)
-    if (seen.size >= 20) break
-  }
-  return [...seen]
-}
-
 /**
  * Chuẩn hoá chính sách vận chuyển. Storefront cũ chưa có khối `shipping` sẽ
  * được nạp từ phí cố định cũ để không mất mức phí đang dùng.
@@ -92,8 +80,6 @@ const normalizeShipping = (
       : defaults.autoStrategy,
     preferredCarrier: String(read('preferredCarrier', defaults.preferredCarrier)).trim().toLowerCase().slice(0, 40),
     maxOptions: clamp(read('maxOptions', defaults.maxOptions), 1, 8, defaults.maxOptions),
-    allowedCarriers: carrierList(read('allowedCarriers', defaults.allowedCarriers)),
-    blockedCarriers: carrierList(read('blockedCarriers', defaults.blockedCarriers)),
     markupPercent: clampDecimal(read('markupPercent', defaults.markupPercent), 0, 100, defaults.markupPercent),
     freeShippingThreshold: clamp(
       read('freeShippingThreshold', Number.isFinite(legacyThreshold) ? legacyThreshold : defaults.freeShippingThreshold),
@@ -205,6 +191,10 @@ export function normalizeConfig(raw: unknown): StoreConfig {
       locale: String(config.features?.locale ?? 'vi-VN'),
       taxRate: clamp(config.features?.taxRate, 0, 100, 0),
       affiliateCommissionRate: clamp(config.features?.affiliateCommissionRate, 0, 100, 5),
+      affiliateHoldDays: clamp(config.features?.affiliateHoldDays, 0, 365, 30),
+      affiliateAttributionDays: clamp(config.features?.affiliateAttributionDays, 1, 365, 30),
+      affiliatePayoutThreshold: clamp(config.features?.affiliatePayoutThreshold, 0, 1_000_000_000, 200000),
+      affiliateAutoReconcile: config.features?.affiliateAutoReconcile !== false,
       minOrderQuantity: clamp(config.features?.minOrderQuantity, 0, 9999, 0)
     },
     shipping: normalizeShipping(config, rawShipping, rawFeatures),

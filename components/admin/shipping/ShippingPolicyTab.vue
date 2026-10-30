@@ -7,21 +7,12 @@ type Carrier = { code: string; name: string; shortName: string }
 const props = defineProps<{ settings: PublicShippingSettings }>()
 const emit = defineEmits<{ updated: [settings: PublicShippingSettings] }>()
 
-function parseList(value: string) {
-  return value
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean)
-}
-
 const form = reactive({
   enabled: true,
   allowCustomerChoice: true,
   autoStrategy: 'cheapest' as StoreShippingPolicy['autoStrategy'],
   preferredCarrier: '',
   maxOptions: 3,
-  allowedCarriersText: '',
-  blockedCarriersText: '',
   markupPercent: 0,
   freeShippingThreshold: 0,
   fallbackBehavior: 'flat' as StoreShippingPolicy['fallbackBehavior'],
@@ -40,8 +31,6 @@ watch(
     form.autoStrategy = policy.autoStrategy
     form.preferredCarrier = policy.preferredCarrier
     form.maxOptions = policy.maxOptions
-    form.allowedCarriersText = policy.allowedCarriers.join(', ')
-    form.blockedCarriersText = policy.blockedCarriers.join(', ')
     form.markupPercent = policy.markupPercent
     form.freeShippingThreshold = policy.freeShippingThreshold
     form.fallbackBehavior = policy.fallbackBehavior
@@ -61,21 +50,21 @@ onMounted(async () => {
     const data = await $fetch<{ carriers: Carrier[] }>('/api/admin/shipping-settings/carriers')
     carriers.value = data.carriers ?? []
   } catch {
-    carriersError.value = 'Chưa tải được danh sách hãng — nhập mã hãng cách nhau bằng dấu phẩy.'
+    carriersError.value = 'Chưa tải được danh sách hãng đang vận hành từ Goship.'
   }
 })
 
-function hasCarrier(list: string, code: string) {
-  return parseList(list).includes(code)
-}
-
-function toggleCarrier(list: 'allowed' | 'blocked', code: string) {
-  const current = list === 'allowed' ? form.allowedCarriersText : form.blockedCarriersText
-  const items = parseList(current)
-  const next = items.includes(code) ? items.filter((item) => item !== code) : [...items, code]
-  if (list === 'allowed') form.allowedCarriersText = next.join(', ')
-  else form.blockedCarriersText = next.join(', ')
-}
+const preferredOptions = computed(() => {
+  const options = carriers.value.map((carrier) => ({
+    value: carrier.code,
+    label: carrier.shortName || carrier.name || carrier.code
+  }))
+  const current = form.preferredCarrier.trim()
+  if (current && !options.some((option) => option.value === current)) {
+    options.unshift({ value: current, label: `${current} (không còn trong danh sách)` })
+  }
+  return options
+})
 
 const busy = ref(false)
 const message = ref('')
@@ -94,8 +83,6 @@ async function save() {
         autoStrategy: form.autoStrategy,
         preferredCarrier: form.preferredCarrier.trim().toLowerCase(),
         maxOptions: form.maxOptions,
-        allowedCarriers: parseList(form.allowedCarriersText),
-        blockedCarriers: parseList(form.blockedCarriersText),
         markupPercent: form.markupPercent,
         freeShippingThreshold: form.freeShippingThreshold,
         fallbackBehavior: form.fallbackBehavior,
@@ -156,8 +143,18 @@ const inputClass =
       </label>
       <label class="block">
         <span class="mb-1 block text-xs font-medium text-slate-600">Hãng ưu tiên</span>
-        <input v-model="form.preferredCarrier" :class="inputClass" placeholder="vd: ghn, ghtk, vtp" />
+        <select v-model="form.preferredCarrier" :class="inputClass" :disabled="!carriers.length && !form.preferredCarrier">
+          <option value="">Không ưu tiên</option>
+          <option v-for="option in preferredOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
       </label>
+      <p class="text-[11px] text-slate-500 sm:col-span-2">
+        Chọn trong các hãng đang vận hành. Hãng ưu tiên được xếp đầu nếu có trong báo giá (khớp cả mã lẫn tên
+        hãng); chiến lược chỉ áp dụng khi hãng ưu tiên không khả dụng. Ngưỡng miễn phí giao cũng áp cho phí dự phòng.
+      </p>
+      <p v-if="carriersError" class="text-[11px] text-amber-700 sm:col-span-2">{{ carriersError }}</p>
     </div>
 
     <div class="grid gap-3 sm:grid-cols-2">
@@ -168,6 +165,7 @@ const inputClass =
       <label class="block">
         <span class="mb-1 block text-xs font-medium text-slate-600">Phụ phí trên cước hãng (%)</span>
         <input v-model.number="form.markupPercent" type="number" min="0" max="100" :class="inputClass" />
+        <span class="mt-1 block text-[11px] text-slate-400">Cước khách trả được làm tròn lên bội số 1.000₫.</span>
       </label>
       <label class="block">
         <span class="mb-1 block text-xs font-medium text-slate-600">Ngưỡng miễn phí giao (₫)</span>
@@ -177,50 +175,6 @@ const inputClass =
         <span class="mb-1 block text-xs font-medium text-slate-600">Phí dự phòng (₫)</span>
         <input v-model.number="form.fallbackFee" type="number" min="0" :class="inputClass" />
       </label>
-    </div>
-
-    <div class="space-y-2 border-t border-slate-100 pt-4">
-      <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Hãng cho phép</h4>
-      <div v-if="carriers.length" class="flex flex-wrap gap-2">
-        <button
-          v-for="carrier in carriers"
-          :key="carrier.code"
-          type="button"
-          class="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
-          :class="
-            hasCarrier(form.allowedCarriersText, carrier.code)
-              ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-          "
-          @click="toggleCarrier('allowed', carrier.code)"
-        >
-          {{ carrier.shortName || carrier.name }}
-        </button>
-      </div>
-      <input v-else v-model="form.allowedCarriersText" :class="inputClass" placeholder="Để trống = tất cả hãng" />
-      <p class="text-[11px] text-slate-500">Để trống nghĩa là cho phép mọi hãng Goship trả về.</p>
-    </div>
-
-    <div class="space-y-2">
-      <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Hãng chặn</h4>
-      <div v-if="carriers.length" class="flex flex-wrap gap-2">
-        <button
-          v-for="carrier in carriers"
-          :key="carrier.code"
-          type="button"
-          class="rounded-full border px-2.5 py-1 text-[11px] font-semibold transition"
-          :class="
-            hasCarrier(form.blockedCarriersText, carrier.code)
-              ? 'border-rose-500 bg-rose-50 text-rose-700'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-          "
-          @click="toggleCarrier('blocked', carrier.code)"
-        >
-          {{ carrier.shortName || carrier.name }}
-        </button>
-      </div>
-      <input v-else v-model="form.blockedCarriersText" :class="inputClass" placeholder="vd: ghtk, vtp" />
-      <p v-if="carriersError" class="text-[11px] text-amber-700">{{ carriersError }}</p>
     </div>
 
     <div class="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">

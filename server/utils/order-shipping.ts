@@ -1,12 +1,12 @@
 import type { AdminOrderShipping, AdminShipmentEvent, ShippingQuoteOption } from '~/types/shipping'
 import { canCancelOrder, canSetOrderStatus } from '~~/utils/order-state'
 import { ensureOrderAccounting } from './accounting'
+import { approveDueCommissionForOrder, cancelCommissionForOrder } from './affiliate-commission'
 import { createShipment, getRates, getShipment, cancelShipment, type GoshipShipment } from './goship'
 import { pbCreate, pbFirst, pbListPage, pbQuote, pbUpdate, type PbRecord } from './pocketbase'
 import { pickupAddressForShipment, rateAddressFromPickup, validatePickup } from './shipping-address'
 import {
   computeCustomerFee,
-  filterOptions,
   rankOptions,
   readStoreShippingPolicy
 } from './shipping-policy'
@@ -246,6 +246,9 @@ export async function advanceOrderStatus(
         .filter(Boolean)
         .join(' · ')
     }
+    await approveDueCommissionForOrder(updated).catch(() => undefined)
+  } else if (patch.status === 'cancelled') {
+    await cancelCommissionForOrder(updated.id).catch(() => undefined)
   }
   return { changed: true, warning }
 }
@@ -318,7 +321,7 @@ export async function quoteOrderShipping(order: PbRecord): Promise<OrderQuoteOpt
     }
   })
 
-  return rankOptions(policy, filterOptions(policy, options))
+  return rankOptions(policy, options)
 }
 
 /** Tạo vận đơn Goship cho đơn đã có đủ mã địa chỉ và rate. */
@@ -355,6 +358,7 @@ export async function createOrderShipment(order: PbRecord, rateId: string) {
     width: settings.parcel.width,
     height: settings.parcel.height,
     length: settings.parcel.length,
+    note: String(order.note ?? '').trim() || undefined,
     addressFrom: pickupAddressForShipment(settings),
     addressTo: {
       name: String(order.shipping_name ?? ''),
@@ -371,7 +375,15 @@ export async function createOrderShipment(order: PbRecord, rateId: string) {
       shipment.carrierError || 'Goship chưa trả mã vận đơn — kiểm tra lại sau hoặc đồng bộ.'
     )
   }
-  return { shipment, order: applied.order, eventInserted: applied.eventInserted }
+
+  // Tạo vận đơn là bước xác nhận đơn: chuyển pending → confirmed để webhook 903/904 còn tiến được sang shipping.
+  let fresh = applied.order
+  const current = String(fresh.status ?? '')
+  if (shipment.id && !shipment.carrierError && current === 'pending' && canSetOrderStatus(current, 'confirmed')) {
+    fresh = await pbUpdate<PbRecord>('orders', fresh.id, { status: 'confirmed' })
+  }
+
+  return { shipment, order: fresh, eventInserted: applied.eventInserted }
 }
 
 export async function syncOrderShipment(order: PbRecord) {

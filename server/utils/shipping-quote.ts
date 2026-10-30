@@ -9,9 +9,9 @@ import { rateAddressFromPickup, resolveCustomerAddress, validatePickup } from '.
 import {
   buildFallbackOption,
   computeCustomerFee,
-  filterOptions,
   rankOptions,
-  readStoreShippingPolicy
+  readStoreShippingPolicy,
+  selectAutoOption
 } from './shipping-policy'
 import {
   isGoshipConfigured,
@@ -339,7 +339,7 @@ export async function createQuote(event: any, input: QuoteInput): Promise<Create
   }
 
   const fallback = async (reason: string, message: string): Promise<CreatedQuote> => {
-    const option: StoredOption = { ...buildFallbackOption(policy), rateId: '' }
+    const option: StoredOption = { ...buildFallbackOption(policy, netMerchandise), rateId: '' }
     const { recordId, expiresAt } = await persistQuote({
       ...base,
       options: policy.fallbackBehavior === 'flat' ? [option] : [],
@@ -566,10 +566,7 @@ export async function createQuote(event: any, input: QuoteInput): Promise<Create
   let cod = paymentMethod === 'cod' ? netMerchandise : 0
 
   const prepare = (rates: GoshipRate[]) => {
-    const options = filterOptions(
-      policy,
-      rates.map((rate) => toStoredOption(rate, policy, netMerchandise))
-    )
+    const options = rates.map((rate) => toStoredOption(rate, policy, netMerchandise))
     return rankOptions(policy, options)
   }
 
@@ -598,7 +595,7 @@ export async function createQuote(event: any, input: QuoteInput): Promise<Create
     return fallback('no-options', 'Chưa có hãng vận chuyển phù hợp cho đơn này.')
   }
 
-  const selectedOptionId = options[0]!.id
+  const selectedOptionId = selectAutoOption(policy, options)?.id ?? options[0]!.id
   const parcelSnapshot = {
     actualWeight: parcel.actualWeight,
     chargeableWeight: parcel.chargeableWeight,

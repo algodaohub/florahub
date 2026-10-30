@@ -1,4 +1,6 @@
 import type { AdminOrderShipping, AdminShipmentEvent } from './shipping'
+import type { StorePaymentQr } from './store'
+import type { AffiliatePayoutSummary, AffiliateStatement, AffiliateStatementLine } from './index'
 
 export type AdminOrderListItem = {
   id: string
@@ -98,11 +100,12 @@ export type AdminOrderDetail = {
   }
   customer: { id: string; email: string; displayName: string } | null
   affiliate: AdminOrderAffiliate | null
-  commission: { amount: number; rate: number; status: string } | null
+  commission: { amount: number; rate: number; status: string; eligibleAt: string } | null
   journal: AdminJournalLine[]
   items: AdminOrderItem[]
   shipping: AdminOrderShipping
   shipmentEvents: AdminShipmentEvent[]
+  paymentQr: StorePaymentQr | null
 }
 
 export type AdminOrderSummary = {
@@ -114,6 +117,139 @@ export type AdminOrderSummary = {
   completedToday: number
   revenueToday: number
   awaitingAmount: number
+}
+
+export type AdminAffiliateStats = {
+  pending: number
+  approved: number
+  processing: number
+  paid: number
+  total: number
+}
+
+export type AdminAffiliateListItem = {
+  id: string
+  code: string
+  name: string
+  email: string
+  phone: string
+  commissionRate: number
+  effectiveRate: number
+  customRate: boolean
+  status: string
+  createdAt: string
+  bankName: string
+  bankAccountMasked: string
+  bankReady: boolean
+  stats: AdminAffiliateStats
+}
+
+export type AdminAffiliateList = {
+  page: number
+  perPage: number
+  total: number
+  totalPages: number
+  items: AdminAffiliateListItem[]
+  summary: { affiliates: number; active: number; pending: number; approved: number; processing: number; paid: number }
+}
+
+export type AdminAffiliateCommissionItem = {
+  id: string
+  amount: number
+  rate: number
+  status: string
+  eligibleAt: string
+  approvedAt: string
+  paidAt: string
+  payoutId: string
+  createdAt: string
+  order: {
+    id: string
+    total: number
+    status: string
+    paymentStatus: string
+    completedAt: string
+    createdAt: string
+  }
+}
+
+export type AdminAffiliateClickItem = {
+  id: string
+  path: string
+  referrer: string
+  createdAt: string
+}
+
+export type AdminAffiliatePayoutItem = AffiliatePayoutSummary & {
+  affiliateId: string
+  affiliateCode: string
+  affiliateName: string
+  affiliateEmail: string
+  reference: string
+  note: string
+  bankName: string
+  bankAccountNo: string
+  bankAccountName: string
+  taxCode: string
+}
+
+export type AdminAffiliatePayoutList = {
+  page: number
+  perPage: number
+  total: number
+  totalPages: number
+  items: AdminAffiliatePayoutItem[]
+  summary: { draft: number; paid: number; paidNet: number }
+  policy: { threshold: number; autoReconcile: boolean }
+}
+
+export type AdminAffiliateReconcileResult = {
+  ran: boolean
+  threshold: number
+  autoReconcile: boolean
+  approvedLines: number
+  approvedGross: number
+  created: number
+  toppedUp: number
+  skippedThreshold: number
+  skippedNoBank: number
+  skippedNoLines: number
+  errors: number
+  periodFrom: string
+  periodTo: string
+}
+
+export type AdminAffiliateDetail = {
+  affiliate: {
+    id: string
+    code: string
+    commissionRate: number
+    effectiveRate: number
+    customRate: boolean
+    status: string
+    createdAt: string
+    bankName: string
+    bankAccountNo: string
+    bankAccountName: string
+    taxCode: string
+  }
+  user: { id: string; email: string; displayName: string; phone: string } | null
+  link: string
+  stats: AdminAffiliateStats
+  available: { count: number; gross: number; tax: number; net: number }
+  defaults: {
+    rate: number
+    holdDays: number
+    attributionDays: number
+    payoutThreshold: number
+    autoReconcile: boolean
+  }
+}
+
+export type AdminAffiliatePayoutDetail = {
+  payout: AdminAffiliatePayoutItem
+  lines: AffiliateStatementLine[]
+  statement: AffiliateStatement
 }
 
 export type AdminAccountingSettings = {

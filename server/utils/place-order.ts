@@ -1,10 +1,10 @@
-import { AFFILIATE_COOKIE, findAffiliateByCode } from './affiliate'
+import { AFFILIATE_COOKIE, effectiveAffiliateRate, findAffiliateByCode } from './affiliate'
 import { getCart, removeCartItems, type CartWithItems } from './cart'
 import { optionalPbUser, pbCreate, pbUpdate } from './pocketbase'
 import { getStoreConfig } from './store'
 import { calculateDiscount, findActivePromotion } from './promotion'
 import { resolvePaymentMethodForServer } from './sepay-pg'
-import { readStoreShippingPolicy } from './shipping-policy'
+import { fallbackShippingFee, readStoreShippingPolicy } from './shipping-policy'
 import { markQuoteUsed, validateQuote, type ValidatedQuote } from './shipping-quote'
 import { initialPaymentStatus, resolvePaymentMethod } from '~~/utils/payments'
 import { vatFromGross } from '~~/utils/accounting'
@@ -97,7 +97,7 @@ async function priceShipping(
     })
   }
   return {
-    shipping: Math.max(0, Math.round(Number(policy.fallbackFee) || 0)),
+    shipping: fallbackShippingFee(policy, Math.max(0, subtotal - discount)),
     shippingRequired: true,
     shippingQuote: null
   }
@@ -211,9 +211,10 @@ export async function placeOrder(event: any, body: PlaceOrderBody, cartOverride?
   const affiliate = referralCode ? await findAffiliateByCode(referralCode) : null
   const validAffiliate =
     affiliate && affiliate.status === 'active' && affiliate.user !== auth?.record.id ? affiliate : null
-  const commission = validAffiliate
-    ? Math.round(((priced.subtotal - priced.discount) * Number(validAffiliate.commission_rate ?? 0)) / 100)
-    : 0
+  // Hoa hồng chỉ trên tiền hàng sau giảm giá (đã gồm VAT), không gồm phí vận chuyển.
+  const commissionBase = Math.max(0, priced.subtotal - priced.discount)
+  const commissionRate = validAffiliate ? effectiveAffiliateRate(priced.storeConfig, validAffiliate) : 0
+  const commission = Math.round((commissionBase * commissionRate) / 100)
 
   const now = new Date().toISOString()
   const order = await pbCreate('orders', {
@@ -260,7 +261,7 @@ export async function placeOrder(event: any, body: PlaceOrderBody, cartOverride?
       affiliate: validAffiliate.id,
       order: order.id,
       amount: commission,
-      rate: Number(validAffiliate.commission_rate ?? 0),
+      rate: commissionRate,
       status: 'pending'
     })
   }

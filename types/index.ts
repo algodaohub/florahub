@@ -206,6 +206,7 @@ export type OrderDetail = {
   subtotal: number
   shippingTotal: number
   discountTotal: number
+  taxRate: number
   taxTotal: number
   total: number
   paymentMethod: string
@@ -335,9 +336,15 @@ export type Affiliate = {
   id: string
   code: string
   commissionRate: number
+  effectiveRate: number
+  customRate: boolean
   status: string
   createdAt: string
   link: string
+  bankName: string
+  bankAccountNo: string
+  bankAccountName: string
+  taxCode: string
 }
 
 export type AffiliateCommission = {
@@ -345,13 +352,94 @@ export type AffiliateCommission = {
   amount: number
   rate: number
   status: string
+  eligibleAt: string
   createdAt: string
+  payoutId: string
   order: { id: string; total: number; status: string; createdAt: string }
+}
+
+export type AffiliatePayoutSummary = {
+  id: string
+  number: string
+  status: string
+  grossTotal: number
+  taxRate: number
+  taxTotal: number
+  netTotal: number
+  commissionCount: number
+  method: string
+  paidAt: string
+  cancelledAt: string
+  createdAt: string
+}
+
+export type AffiliateStatementLine = {
+  commissionId: string
+  orderId: string
+  orderCode: string
+  orderDate: string
+  completedAt: string
+  goodsTotal: number
+  rate: number
+  amount: number
+}
+
+export type AffiliateStatement = {
+  number: string
+  status: string
+  issuedAt: string
+  paidAt: string
+  cancelledAt: string
+  method: string
+  reference: string
+  note: string
+  periodFrom: string
+  periodTo: string
+  seller: {
+    name: string
+    taxCode: string
+    address: string
+    phone: string
+    email: string
+    invoiceSymbol: string
+    invoiceTemplate: string
+  }
+  affiliate: {
+    name: string
+    email: string
+    code: string
+    taxCode: string
+    bankName: string
+    bankAccountNo: string
+    bankAccountName: string
+  }
+  lines: AffiliateStatementLine[]
+  totals: {
+    gross: number
+    taxRate: number
+    tax: number
+    net: number
+    count: number
+    netInWords: string
+  }
 }
 
 export type AffiliateSummary = {
   affiliate: Affiliate | null
   defaultRate: number
-  stats: { clicks: number; orders: number; pending: number; paid: number; total: number }
+  holdDays: number
+  attributionDays: number
+  payoutThreshold: number
+  autoReconcile: boolean
+  stats: {
+    clicks: number
+    orders: number
+    pending: number
+    approved: number
+    processing: number
+    paid: number
+    total: number
+  }
   commissions: AffiliateCommission[]
+  payouts: AffiliatePayoutSummary[]
 }

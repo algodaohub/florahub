@@ -62,6 +62,10 @@ export const defaultConfig: StoreConfig = {
     locale: 'vi-VN',
     taxRate: 0,
     affiliateCommissionRate: 5,
+    affiliateHoldDays: 30,
+    affiliateAttributionDays: 30,
+    affiliatePayoutThreshold: 200000,
+    affiliateAutoReconcile: true,
     minOrderQuantity: 0
   },
   shipping: {
@@ -70,8 +74,6 @@ export const defaultConfig: StoreConfig = {
     autoStrategy: 'cheapest',
     preferredCarrier: '',
     maxOptions: 3,
-    allowedCarriers: [],
-    blockedCarriers: [],
     markupPercent: 0,
     freeShippingThreshold: 500000,
     fallbackBehavior: 'flat',

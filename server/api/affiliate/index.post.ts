@@ -2,25 +2,35 @@ import { requirePbUser, pbCreate, pbFirst, pbQuote, type PbRecord } from '~~/ser
 import { findAffiliateByUser, generateAffiliateCode } from '~~/server/utils/affiliate'
 import { getSiteSettings } from '~~/server/utils/store'
 
+function affiliateResponse(record: PbRecord, defaultRate: number, origin: string) {
+  const customRate = record.custom_rate === true
+  const storedRate = Number(record.commission_rate ?? 0)
+  return {
+    id: record.id,
+    code: record.code,
+    commissionRate: storedRate,
+    effectiveRate: customRate ? storedRate : defaultRate,
+    customRate,
+    status: record.status,
+    createdAt: record.created_at || record.created,
+    link: `${origin}/?ref=${record.code}`,
+    bankName: String(record.bank_name ?? ''),
+    bankAccountNo: String(record.bank_account_no ?? ''),
+    bankAccountName: String(record.bank_account_name ?? ''),
+    taxCode: String(record.tax_code ?? '')
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const { record, user } = await requirePbUser(event)
+  const settings = await getSiteSettings(event)
   const existing = await findAffiliateByUser(record.id)
   const origin = getRequestURL(event).origin
 
   if (existing) {
-    return {
-      affiliate: {
-        id: existing.id,
-        code: existing.code,
-        commissionRate: Number(existing.commission_rate ?? 0),
-        status: existing.status,
-        createdAt: existing.created_at || existing.created,
-        link: `${origin}/?ref=${existing.code}`
-      }
-    }
+    return { affiliate: affiliateResponse(existing, settings.affiliateCommissionRate, origin) }
   }
 
-  const settings = await getSiteSettings(event)
   let code = generateAffiliateCode(user.displayName)
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const taken = await pbFirst<PbRecord>('affiliates', { filter: `code = ${pbQuote(code)}`, fields: 'id' })
@@ -28,22 +38,14 @@ export default defineEventHandler(async (event) => {
     code = generateAffiliateCode(user.displayName)
   }
 
-  const affiliate = await pbCreate('affiliates', {
+  const affiliate = await pbCreate<PbRecord>('affiliates', {
     user: record.id,
     code,
     commission_rate: settings.affiliateCommissionRate,
+    custom_rate: false,
     status: 'active',
     created_at: new Date().toISOString()
   })
 
-  return {
-    affiliate: {
-      id: affiliate.id,
-      code: affiliate.code,
-      commissionRate: Number(affiliate.commission_rate ?? 0),
-      status: affiliate.status,
-      createdAt: affiliate.created_at || affiliate.created,
-      link: `${origin}/?ref=${affiliate.code}`
-    }
-  }
+  return { affiliate: affiliateResponse(affiliate, settings.affiliateCommissionRate, origin) }
 })

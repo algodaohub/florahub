@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { findOrder } from '~~/server/utils/order'
 import { pbFirst, pbQuote, pbUpdate, type PbRecord } from '~~/server/utils/pocketbase'
 import { invoiceOrderId, sepayPgSettings } from '~~/server/utils/sepay-pg'
+import { syncCommissionAtPayment } from '~~/server/utils/affiliate-commission'
 
 /**
  * IPN của Cổng thanh toán SePay (hosted checkout).
@@ -100,6 +101,7 @@ export default defineEventHandler(async (event) => {
     ...(sepayOrderId ? { sepay_order_id: sepayOrderId } : {}),
     paid_at: new Date().toISOString()
   })
+  await syncCommissionAtPayment({ ...order, payment_status: 'paid' }, event).catch(() => undefined)
 
   console.info('[sepay-ipn] đã xác nhận thanh toán', { order: order.id, amount, transactionId })
   return { success: true }

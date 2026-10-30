@@ -2,6 +2,7 @@ import { pbGetRecord, pbUpdate, type PbRecord } from '~~/server/utils/pocketbase
 import { requireAdminMutation } from '~~/server/utils/admin'
 import { toText } from '~~/server/utils/admin-data'
 import { ensureOrderAccounting } from '~~/server/utils/accounting'
+import { applyRefundToCommission } from '~~/server/utils/affiliate-commission'
 
 /** Hoàn tiền đơn đã thanh toán: bắt buộc lý do, ghi bút toán 5212/3331 và huỷ hoá đơn nếu hoàn toàn phần. */
 export default defineEventHandler(async (event) => {
@@ -53,6 +54,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const fresh = (await pbGetRecord<PbRecord>('orders', id)) ?? updated
+  await applyRefundToCommission(fresh).catch(() => undefined)
 
   return {
     order: {

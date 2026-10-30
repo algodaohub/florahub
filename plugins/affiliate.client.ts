@@ -9,8 +9,7 @@ export default defineNuxtPlugin(() => {
       if (!code || !/^[A-Z0-9]{4,20}$/.test(code) || code === lastCode) return
       lastCode = code
 
-      document.cookie = `affiliate_ref=${encodeURIComponent(code)}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`
-
+      // Cookie do /api/affiliate/click đặt theo thời hạn cấu hình cửa hàng.
       $fetch('/api/affiliate/click', {
         method: 'POST',
         body: {

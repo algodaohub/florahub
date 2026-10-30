@@ -1,4 +1,4 @@
-import { AFFILIATE_COOKIE, findAffiliateByCode } from '~~/server/utils/affiliate'
+import { AFFILIATE_COOKIE, findAffiliateByCode, readAffiliateAttributionDays } from '~~/server/utils/affiliate'
 import { pbCreate } from '~~/server/utils/pocketbase'
 
 export default defineEventHandler(async (event) => {
@@ -16,11 +16,12 @@ export default defineEventHandler(async (event) => {
     created_at: new Date().toISOString()
   })
 
+  const attributionDays = await readAffiliateAttributionDays(event)
   setCookie(event, AFFILIATE_COOKIE, affiliate.code, {
     httpOnly: false,
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24 * 30
+    maxAge: 60 * 60 * 24 * attributionDays
   })
 
   return { ok: true }

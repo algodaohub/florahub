@@ -15,11 +15,6 @@ function text(value: unknown) {
   return typeof value === 'string' ? value : undefined
 }
 
-function carriers(value: unknown) {
-  if (!Array.isArray(value)) return undefined
-  return value.map((item) => String(item ?? '').trim().toLowerCase()).filter(Boolean)
-}
-
 export default defineEventHandler(async (event) => {
   await requireAdminMutation(event, { adminOnly: true })
 
@@ -36,10 +31,6 @@ export default defineEventHandler(async (event) => {
   if (preferredCarrier !== undefined) patch.preferredCarrier = preferredCarrier
   const maxOptions = num(body?.maxOptions)
   if (maxOptions !== undefined) patch.maxOptions = maxOptions
-  const allowedCarriers = carriers(body?.allowedCarriers)
-  if (allowedCarriers !== undefined) patch.allowedCarriers = allowedCarriers
-  const blockedCarriers = carriers(body?.blockedCarriers)
-  if (blockedCarriers !== undefined) patch.blockedCarriers = blockedCarriers
   const markupPercent = num(body?.markupPercent)
   if (markupPercent !== undefined) patch.markupPercent = markupPercent
   const freeShippingThreshold = num(body?.freeShippingThreshold)

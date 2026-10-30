@@ -1,4 +1,4 @@
-import type { StorePaymentMethod, StorePayments } from '~/types/store'
+import type { StorePaymentMethod, StorePaymentQr, StorePayments } from '~/types/store'
 
 export const paymentMethodLabels: Record<StorePaymentMethod, string> = {
   qr: 'VietQR — miễn phí',
@@ -7,7 +7,7 @@ export const paymentMethodLabels: Record<StorePaymentMethod, string> = {
 }
 
 /** QR chỉ dùng được khi bật và đã có ngân hàng + số tài khoản. */
-export function isQrPaymentReady(payments: StorePayments | null | undefined) {
+export function isQrPaymentReady(payments: { qr: StorePaymentQr } | null | undefined) {
   const qr = payments?.qr
   return Boolean(qr?.enabled && qr.bankId.trim() && qr.accountNo.trim())
 }
@@ -39,7 +39,7 @@ export function initialPaymentStatus(method: StorePaymentMethod) {
 }
 
 export function buildVietQrUrl(
-  payments: StorePayments | null | undefined,
+  payments: { qr: StorePaymentQr } | null | undefined,
   options: { amount?: number; addInfo?: string } = {}
 ) {
   if (!isQrPaymentReady(payments)) return ''
