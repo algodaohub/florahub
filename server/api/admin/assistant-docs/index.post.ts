@@ -17,6 +17,7 @@ export default defineEventHandler(async (event) => {
     content,
     tags: toText(body?.tags, 300),
     is_active: body?.isActive === undefined ? true : toBool(body.isActive),
+    for_training: toBool(body?.forTraining),
     sort_order: toNumber(body?.sortOrder, 0),
     updated_at: new Date().toISOString()
   })

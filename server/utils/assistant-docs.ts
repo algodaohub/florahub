@@ -10,6 +10,7 @@ export type AssistantDoc = {
 
 export type AdminAssistantDoc = AssistantDoc & {
   isActive: boolean
+  forTraining: boolean
   updatedAt: string
 }
 
@@ -20,6 +21,7 @@ export function toAdminDoc(record: PbRecord): AdminAssistantDoc {
     content: String(record.content ?? ''),
     tags: String(record.tags ?? ''),
     isActive: record.is_active !== false,
+    forTraining: record.for_training === true,
     sortOrder: Number(record.sort_order ?? 0),
     updatedAt: String(record.updated_at ?? record.updated ?? '')
   }
@@ -42,6 +44,16 @@ export function normalizeDocText(value: string) {
     .toLowerCase()
 }
 
+function rowToDoc(row: DocRecord): AssistantDoc {
+  return {
+    id: row.id,
+    title: String(row.title ?? ''),
+    content: String(row.content ?? ''),
+    tags: String(row.tags ?? ''),
+    sortOrder: Number(row.sort_order ?? 0)
+  }
+}
+
 /** Tài liệu tư vấn đang bật. Collection chưa migrate → trả rỗng, trợ lý vẫn chạy. */
 export async function listAssistantDocs(): Promise<AssistantDoc[]> {
   try {
@@ -49,13 +61,20 @@ export async function listAssistantDocs(): Promise<AssistantDoc[]> {
       filter: 'is_active = true',
       sort: 'sort_order,title'
     })
-    return rows.map((row) => ({
-      id: row.id,
-      title: String(row.title ?? ''),
-      content: String(row.content ?? ''),
-      tags: String(row.tags ?? ''),
-      sortOrder: Number(row.sort_order ?? 0)
-    }))
+    return rows.map(rowToDoc)
+  } catch {
+    return []
+  }
+}
+
+/** Tài liệu được đánh dấu huấn luyện AI (bất kể đang bật hay tắt). */
+export async function listTrainingDocs(): Promise<AssistantDoc[]> {
+  try {
+    const rows = await pbListAll<DocRecord>('assistant_docs', {
+      filter: 'for_training = true',
+      sort: 'sort_order,title'
+    })
+    return rows.map(rowToDoc)
   } catch {
     return []
   }

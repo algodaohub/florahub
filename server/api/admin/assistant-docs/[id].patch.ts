@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
   }
   if (body?.tags !== undefined) patch.tags = toText(body.tags, 300)
   if (body?.isActive !== undefined) patch.is_active = toBool(body.isActive)
+  if (body?.forTraining !== undefined) patch.for_training = toBool(body.forTraining)
   if (body?.sortOrder !== undefined) patch.sort_order = toNumber(body.sortOrder, 0)
 
   if (Object.keys(patch).length === 0) {
