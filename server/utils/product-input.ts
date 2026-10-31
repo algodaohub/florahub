@@ -38,6 +38,7 @@ export function buildProductFields(
   if (creating || has('seoKeywords')) patch.seo_keywords = toText(body.seoKeywords, 300)
   if (creating || has('canonicalUrl')) patch.canonical_url = toText(body.canonicalUrl, 500)
   if (creating || has('aeoSummary')) patch.aeo_summary = toText(body.aeoSummary, 1200)
+  if (creating || has('geoServiceAreas')) patch.geo_service_areas = toText(body.geoServiceAreas, 500)
 
   if (creating || has('highlights')) patch.highlights = toHighlights(body.highlights)
   if (creating || has('faq')) patch.faq = toFaq(body.faq)

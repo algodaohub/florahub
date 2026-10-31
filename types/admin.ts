@@ -447,6 +447,7 @@ export type AdminProductDetail = {
     seoKeywords: string
     canonicalUrl: string
     aeoSummary: string
+    geoServiceAreas: string
     highlights: AdminProductHighlight[]
     faq: AdminProductFaq[]
     digitalFileName: string | null

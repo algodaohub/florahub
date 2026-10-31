@@ -55,11 +55,20 @@ export default defineEventHandler(async (event) => {
     }
     patch.status = body.status
   }
-  if (body?.type !== undefined && !isProductType(body.type)) {
-    throw createError({ statusCode: 400, statusMessage: 'Loại sản phẩm không hợp lệ' })
+  const requestedType = body?.type
+  if (requestedType !== undefined) {
+    if (!isProductType(requestedType)) {
+      throw createError({ statusCode: 400, statusMessage: 'Loại sản phẩm không hợp lệ' })
+    }
+    const currentType = isProductType(current.type) ? current.type : ''
+    if (currentType && currentType !== requestedType) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Sản phẩm đã xác định loại "${currentType}", không đổi sang loại khác. Hãy tạo sản phẩm mới.`
+      })
+    }
   }
-
-  Object.assign(patch, buildProductFields(body, { current }))
+  Object.assign(patch, buildProductFields({ ...body, type: requestedType ?? current.type }, { current }))
 
   if (Object.keys(patch).length === 0) {
     throw createError({ statusCode: 400, statusMessage: 'Không có thay đổi để lưu' })

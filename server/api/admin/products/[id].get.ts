@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
       seoKeywords: product.seo_keywords || '',
       canonicalUrl: product.canonical_url || '',
       aeoSummary: product.aeo_summary || '',
+      geoServiceAreas: product.geo_service_areas || '',
       highlights: toHighlights(product.highlights),
       faq: toFaq(product.faq),
       digitalFileName: product.digital_file || null,
