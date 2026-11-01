@@ -12,7 +12,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
-    "pb:setup": "node scripts/setup-pocketbase.mjs && node scripts/migrate-to-pocketbase.mjs && node scripts/sync-pocketbase-locations.mjs && node scripts/sync-pocketbase-ward-rules.mjs",
+    "pb:setup": "node scripts/setup-pocketbase.mjs && node scripts/sync-pocketbase-locations.mjs && node scripts/sync-pocketbase-ward-rules.mjs",
     "pb:migrate": "node scripts/migrate-to-pocketbase.mjs",
     "pb:locations": "node scripts/sync-pocketbase-locations.mjs",
     "pb:locations:reset": "node scripts/sync-pocketbase-locations.mjs --reset",
