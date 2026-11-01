@@ -259,6 +259,8 @@ function isActive(path: string) {
         </div>
       </nav>
 
+      <SupportFab v-if="route.path !== '/checkout'" />
+
       <AddToCartSheet />
     </div>
   </div>

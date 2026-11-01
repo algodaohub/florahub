@@ -137,6 +137,8 @@ export type AdminOrderShipping = {
   provider: string
   quoteId: string
   optionId: string
+  /** Rate khách đã chọn khi đặt hàng (server-only) — dùng để pre-chọn đúng rate khi tạo vận đơn. */
+  rateId: string
   carrier: string
   carrierName: string
   service: string

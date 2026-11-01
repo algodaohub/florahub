@@ -1,7 +1,7 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'admin', middleware: 'admin', title: 'Giao diện cửa hàng' })
+definePageMeta({ layout: 'admin', middleware: 'admin', redirect: '/admin/settings?tab=storefront' })
 </script>
 
 <template>
-  <AdminStorefrontEditor />
+  <div />
 </template>

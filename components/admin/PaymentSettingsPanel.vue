@@ -218,7 +218,7 @@ async function copyText(text: string) {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-3xl space-y-4">
+  <div class="mx-auto w-full max-w-5xl space-y-4">
     <div>
       <h2 class="text-lg font-semibold">Cấu hình thanh toán</h2>
     </div>

@@ -82,6 +82,7 @@ export type AdminOrderDetail = {
     shippingName: string
     shippingPhone: string
     shippingAddress: string
+    shippingRegion: { city: string; ward: string; cityCode: string; wardCode: string }
     note: string
     paidAt: string
     completedAt: string

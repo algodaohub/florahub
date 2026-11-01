@@ -217,9 +217,14 @@ export async function placeOrder(event: any, body: PlaceOrderBody, cartOverride?
   const commission = Math.round((commissionBase * commissionRate) / 100)
 
   const now = new Date().toISOString()
+  const regionCityCode = String(body.cityCode ?? '').trim()
+  const regionWardCode = String(body.wardCode ?? '').trim()
   const order = await pbCreate('orders', {
     ...(auth?.record.id ? { user: auth.record.id } : {}),
     ...(validAffiliate ? { affiliate: validAffiliate.id } : {}),
+    // Mã vùng 2 cấp khách chọn ở checkout — dùng lại khi admin sửa địa chỉ đơn hàng.
+    ...(regionCityCode ? { shipping_region_city_code: regionCityCode } : {}),
+    ...(regionWardCode ? { shipping_region_ward_code: regionWardCode } : {}),
     email,
     status: 'pending',
     payment_method: priced.paymentMethod,

@@ -10,8 +10,10 @@ const props = withDefaults(
     showSuccessRate?: boolean
     disabled?: boolean
     dense?: boolean
+    /** customer: giá khách trả (mặc định). carrier: cước hãng — dùng ở màn admin để shop thấy chi phí thật. */
+    feeMode?: 'customer' | 'carrier'
   }>(),
-  { showEta: true, showSuccessRate: false, disabled: false, dense: false }
+  { showEta: true, showSuccessRate: false, disabled: false, dense: false, feeMode: 'customer' }
 )
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
@@ -24,8 +26,10 @@ function badgeClass(badge: string) {
 }
 
 function feeLabel(option: ShippingQuoteOption) {
+  if (props.feeMode === 'carrier') return formatVnd(option.fee)
   return option.customerFee === 0 ? 'Miễn phí' : formatVnd(option.customerFee)
 }
+const carrierMode = computed(() => props.feeMode === 'carrier')
 </script>
 
 <template>
@@ -72,11 +76,15 @@ function feeLabel(option: ShippingQuoteOption) {
         </span>
       </span>
       <span class="shrink-0 text-right">
-        <span class="t-body font-semibold" :class="option.customerFee === 0 ? 'text-primary' : ''">
+        <span
+          class="t-body font-semibold"
+          :class="carrierMode ? '' : option.customerFee === 0 ? 'text-primary' : ''"
+        >
           {{ feeLabel(option) }}
         </span>
+        <span v-if="carrierMode" class="block t-micro font-medium text-muted">Shop trả cước VC</span>
         <span
-          v-if="option.feeOriginal > option.customerFee && option.customerFee > 0"
+          v-else-if="option.feeOriginal > option.customerFee && option.customerFee > 0"
           class="block t-micro text-muted line-through"
         >
           {{ formatVnd(option.feeOriginal) }}

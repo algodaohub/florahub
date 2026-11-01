@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { AdminOrderDetail } from '~/types/admin'
 import { formatDateTime, formatOrderCode, formatVnd } from '~/utils/format'
-import { commissionStatusMeta, orderStatusMeta, paymentMethodLabel, paymentStatusMeta } from '~/utils/admin'
+import { commissionStatusMeta, paymentMethodLabel, paymentStatusMeta } from '~/utils/admin'
 import { invoiceStatusMeta, vatRateLabel } from '~/utils/accounting'
 import { buildVietQrUrl, formatBankAccount } from '~/utils/payments'
+import { isSameLocationName } from '~/utils/locations'
 
 definePageMeta({ layout: 'admin', middleware: 'admin', title: 'Chi tiết đơn hàng' })
 
@@ -20,20 +21,68 @@ const form = reactive({
   note: '',
   shippingName: '',
   shippingPhone: '',
-  shippingAddress: ''
+  shippingAddress: '',
+  shippingCity: '',
+  shippingWard: '',
+  shippingCityCode: '',
+  shippingWardCode: ''
 })
 
+// Tách phần "số nhà, đường" khỏi chuỗi địa chỉ đầy đủ "…, phường, tỉnh" (cách ghép của checkout).
+function splitStreetAddress(full: string, city = '', ward = '') {
+  const street = String(full ?? '').trim()
+  const suffix = [ward, city].filter(Boolean).join(', ')
+  if (suffix && street.endsWith(suffix)) {
+    return street.slice(0, street.length - suffix.length).replace(/[,\s]+$/, '')
+  }
+  return street
+}
+
+let hydrated = false
 watch(
   data,
   (value) => {
     if (!value) return
+    if (hydrated && detailsDirty.value) return // không nạp đè khi admin đang có chỉnh sửa chưa lưu
+    const region = value.order.shippingRegion ?? { city: '', ward: '', cityCode: '', wardCode: '' }
     form.note = value.order.note ?? ''
     form.shippingName = value.order.shippingName ?? ''
     form.shippingPhone = value.order.shippingPhone ?? ''
-    form.shippingAddress = value.order.shippingAddress ?? ''
+    form.shippingCity = region.city
+    form.shippingWard = region.ward
+    form.shippingCityCode = region.cityCode
+    form.shippingWardCode = region.wardCode
+    form.shippingAddress = splitStreetAddress(value.order.shippingAddress ?? '', region.city, region.ward)
+    hydrated = false
+    nextTick(() => {
+      hydrated = true
+    })
   },
   { immediate: true }
 )
+
+// Đổi tỉnh/phường → ghép lại chuỗi địa chỉ y hệt checkout: "số nhà, phường, tỉnh".
+// Bỏ các đuôi trùng tên vùng (cũ/mới/đã lưu, so khớp chuẩn hoá) trước khi ghép để không dồn suffix.
+function stripRegionSuffix(street: string, names: string[]) {
+  let parts = street.split(',').map((s) => s.trim())
+  while (parts.length > 1 && names.some((n) => n && isSameLocationName(parts[parts.length - 1], n))) {
+    parts = parts.slice(0, -1)
+  }
+  return parts.join(', ')
+}
+
+watch([() => form.shippingWard, () => form.shippingCity], ([ward, city], [oldWard, oldCity]) => {
+  if (!ward && !city) return
+  const street = stripRegionSuffix(form.shippingAddress.trim(), [
+    oldWard,
+    oldCity,
+    savedRegion.value.ward,
+    savedRegion.value.city,
+    ward,
+    city
+  ])
+  form.shippingAddress = [street, ward, city].filter(Boolean).join(', ')
+})
 
 const order = computed(() => data.value?.order ?? null)
 const items = computed(() => data.value?.items ?? [])
@@ -43,6 +92,8 @@ const journal = computed(() => data.value?.journal ?? [])
 
 const itemTotal = computed(() => items.value.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0))
 const netRevenue = computed(() => Math.max(0, (order.value?.total ?? 0) - (order.value?.taxTotal ?? 0)))
+// Cước hãng thật shop phải trả — giữ nguyên khi khách được freeship.
+const carrierFee = computed(() => data.value?.shipping?.feeActual || data.value?.shipping?.feeQuoted || 0)
 
 const STEPS = [
   { key: 'pending', label: 'Chờ xác nhận' },
@@ -124,14 +175,36 @@ async function copyCode() {
   }
 }
 
+const savedRegion = computed(
+  () => order.value?.shippingRegion ?? { city: '', ward: '', cityCode: '', wardCode: '' }
+)
+
+// Vùng đang đổi dở (đã chọn tỉnh, chưa chọn phường) — không lưu kẻo address mới + region cũ lệch nhau.
+const regionTouched = computed(() => {
+  const region = savedRegion.value
+  const savedHasCodes = Boolean(region.cityCode || region.wardCode)
+  return (
+    form.shippingCity !== region.city ||
+    form.shippingWard !== region.ward ||
+    (savedHasCodes && (form.shippingCityCode !== region.cityCode || form.shippingWardCode !== region.wardCode))
+  )
+})
+
 const detailsDirty = computed(() => {
   const current = order.value
   if (!current) return false
+  const region = current.shippingRegion
+  const savedHasCodes = Boolean(region?.cityCode || region?.wardCode)
+  const codesChanged =
+    form.shippingCityCode !== (region?.cityCode ?? '') || form.shippingWardCode !== (region?.wardCode ?? '')
   return (
     form.note !== (current.note ?? '') ||
     form.shippingName !== (current.shippingName ?? '') ||
     form.shippingPhone !== (current.shippingPhone ?? '') ||
-    form.shippingAddress !== (current.shippingAddress ?? '')
+    form.shippingAddress !== (current.shippingAddress ?? '') ||
+    (savedHasCodes && codesChanged) ||
+    // Đơn legacy chưa có mã vùng: chỉ tính là sửa khi admin chọn đủ cả tỉnh + phường.
+    (!savedHasCodes && Boolean(form.shippingCityCode && form.shippingWardCode))
   )
 })
 
@@ -149,22 +222,84 @@ async function request<T>(url: string, options: Record<string, unknown>): Promis
   }
 }
 
+const autoSaveState = ref<'idle' | 'dirty' | 'saving' | 'saved'>('idle')
+let savedClearTimer: ReturnType<typeof setTimeout> | null = null
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+
 async function saveDetails() {
-  if (busy.value || !detailsDirty.value) return
+  if (busy.value) {
+    // Đang lưu mà admin gõ tiếp — đợi lượt này xong rồi lưu tiếp, không bỏ thay đổi.
+    if (autoSaveTimer) clearTimeout(autoSaveTimer)
+    autoSaveTimer = setTimeout(() => {
+      autoSaveTimer = null
+      void saveDetails()
+    }, 500)
+    return
+  }
+  if (!detailsDirty.value) {
+    autoSaveState.value = 'idle'
+    return
+  }
+  if (regionTouched.value && !(form.shippingCityCode && form.shippingWardCode)) {
+    autoSaveState.value = 'dirty'
+    return
+  }
+  autoSaveState.value = 'saving'
+  const body: Record<string, unknown> = {
+    note: form.note,
+    shippingName: form.shippingName,
+    shippingPhone: form.shippingPhone,
+    shippingAddress: form.shippingAddress
+  }
+  // Server yêu cầu đủ cả hai mã khi có field vùng; gửi khi chọn đủ để backfill cho đơn legacy.
+  if (form.shippingCityCode && form.shippingWardCode) {
+    body.shippingCityCode = form.shippingCityCode
+    body.shippingWardCode = form.shippingWardCode
+    body.shippingCityName = form.shippingCity
+    body.shippingWardName = form.shippingWard
+  }
   const result = await request<{ warning?: string }>(`/api/admin/orders/${id}`, {
     method: 'PATCH',
-    body: {
-      note: form.note,
-      shippingName: form.shippingName,
-      shippingPhone: form.shippingPhone,
-      shippingAddress: form.shippingAddress
-    }
+    body
   })
-  if (!result) return
+  if (!result) {
+    autoSaveState.value = 'dirty'
+    return
+  }
   await refresh()
   warning.value = result.warning ?? ''
   flash('Đã lưu thông tin đơn hàng.')
+  autoSaveState.value = 'saved'
+  if (savedClearTimer) clearTimeout(savedClearTimer)
+  savedClearTimer = setTimeout(() => {
+    autoSaveState.value = 'idle'
+  }, 2500)
 }
+
+watch(
+  () => [
+    form.note,
+    form.shippingName,
+    form.shippingPhone,
+    form.shippingAddress,
+    form.shippingCityCode,
+    form.shippingWardCode
+  ],
+  () => {
+    if (!hydrated || !detailsDirty.value) return
+    autoSaveState.value = 'dirty'
+    if (autoSaveTimer) clearTimeout(autoSaveTimer)
+    autoSaveTimer = setTimeout(() => {
+      autoSaveTimer = null
+      void saveDetails()
+    }, 700)
+  }
+)
+
+onBeforeUnmount(() => {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  if (savedClearTimer) clearTimeout(savedClearTimer)
+})
 
 const confirmPaid = ref(false)
 async function markPaid() {
@@ -273,7 +408,6 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
           >
             {{ copied ? 'Đã chép' : 'Chép mã' }}
           </button>
-          <AdminBadge v-bind="orderStatusMeta(order.status)" />
           <AdminBadge v-bind="paymentStatusMeta(order.paymentStatus)" />
         </div>
         <p v-if="order" class="text-sm text-slate-500">
@@ -301,14 +435,6 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
           Hoàn tiền
         </button>
         <div class="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-            :disabled="pending"
-            @click="refresh()"
-          >
-            {{ pending ? 'Đang tải…' : 'Làm mới' }}
-          </button>
           <NuxtLink
             v-if="order"
             :to="`/orders/${order.id}`"
@@ -357,35 +483,32 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
         Đơn đã huỷ{{ order.cancelledAt ? ` lúc ${formatDateTime(order.cancelledAt)}` : '' }}. Không thể chuyển trạng
         thái tiếp.
       </section>
-      <section v-else class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <ol class="grid grid-cols-4 gap-2">
-          <li v-for="(step, index) in STEPS" :key="step.key" class="min-w-0">
-            <div class="flex items-center gap-2">
-              <span
-                class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-semibold"
-                :class="
-                  index < stepIndex
-                    ? 'bg-emerald-700 text-white'
-                    : index === stepIndex
-                      ? 'bg-emerald-50 text-emerald-700 ring-2 ring-emerald-600'
-                      : 'bg-slate-100 text-slate-400'
-                "
-              >
-                {{ index + 1 }}
-              </span>
-              <span
-                class="hidden h-px min-w-2 flex-1 sm:block"
-                :class="index <= stepIndex ? 'bg-emerald-500' : 'bg-slate-200'"
-              />
-            </div>
-            <p
-              class="mt-1 truncate text-[11px] font-medium"
-              :class="index <= stepIndex ? 'text-emerald-800' : 'text-slate-400'"
+      <section
+        v-else
+        class="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm"
+      >
+        <template v-for="(step, index) in STEPS" :key="step.key">
+          <span
+            class="flex items-center gap-1.5 text-xs font-medium"
+            :class="index === stepIndex ? 'text-emerald-700' : index < stepIndex ? 'text-slate-500' : 'text-slate-400'"
+          >
+            <span
+              class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold"
+              :class="
+                index < stepIndex
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : index === stepIndex
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-100 text-slate-400'
+              "
             >
-              {{ step.label }}
-            </p>
-          </li>
-        </ol>
+              <template v-if="index < stepIndex">✓</template>
+              <template v-else>{{ index + 1 }}</template>
+            </span>
+            {{ step.label }}
+          </span>
+          <span v-if="index < STEPS.length - 1" class="h-px w-4 shrink-0 bg-slate-200 sm:w-8" aria-hidden="true" />
+        </template>
       </section>
 
       <div class="grid w-full gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -450,16 +573,10 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <h4 class="text-sm font-semibold">Người nhận & ghi chú</h4>
-                <span v-if="detailsDirty" class="text-[11px] font-medium text-amber-600">Chưa lưu</span>
+                <span v-if="autoSaveState === 'dirty'" class="text-[11px] font-medium text-amber-600">Chưa lưu</span>
+                <span v-else-if="autoSaveState === 'saving'" class="text-[11px] font-medium text-slate-500">Đang lưu…</span>
+                <span v-else-if="autoSaveState === 'saved'" class="text-[11px] font-medium text-emerald-600">✓ Đã lưu</span>
               </div>
-              <button
-                type="button"
-                class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
-                :disabled="busy || !detailsDirty"
-                @click="saveDetails"
-              >
-                {{ busy ? 'Đang lưu…' : 'Lưu' }}
-              </button>
             </div>
             <div class="mt-3 grid gap-2 sm:grid-cols-2">
               <label class="block">
@@ -476,6 +593,19 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
                   class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                 />
               </label>
+              <div class="sm:col-span-2">
+                <AddressRegionFields
+                  v-model:city="form.shippingCity"
+                  v-model:ward="form.shippingWard"
+                  v-model:city-code="form.shippingCityCode"
+                  v-model:ward-code="form.shippingWardCode"
+                  dense
+                  id-prefix="admin-order-region"
+                />
+                <p class="mt-1 text-[11px] text-slate-400">
+                  Chọn đúng tỉnh/phường để báo giá cước. Đổi vùng sẽ báo giá lại.
+                </p>
+              </div>
               <label class="block sm:col-span-2">
                 <span class="mb-1 block text-xs font-medium text-slate-600">Địa chỉ</span>
                 <textarea
@@ -630,8 +760,12 @@ useHead(() => ({ title: order.value ? `Đơn ${orderCode(order.value.id)}` : 'Ch
                 <dd class="tabular-nums text-emerald-700">−{{ formatVnd(order.discountTotal) }}</dd>
               </div>
               <div class="flex justify-between text-slate-600">
-                <dt>Phí giao hàng</dt>
+                <dt>Phí giao hàng (khách trả)</dt>
                 <dd class="tabular-nums">{{ order.shippingTotal ? formatVnd(order.shippingTotal) : 'Miễn phí' }}</dd>
+              </div>
+              <div v-if="carrierFee > 0" class="flex justify-between text-slate-600">
+                <dt>Phí hãng (shop trả)</dt>
+                <dd class="tabular-nums">{{ formatVnd(carrierFee) }}</dd>
               </div>
               <div v-if="order.taxTotal" class="flex justify-between text-slate-500">
                 <dt>Trong đó VAT ({{ vatRateLabel(order.taxRate) }})</dt>

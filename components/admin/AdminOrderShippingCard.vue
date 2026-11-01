@@ -27,7 +27,7 @@ const quoteLoaded = ref(false)
 const confirmCancel = ref(false)
 
 const hasShipment = computed(() => Boolean(props.shipping.shipmentId || props.shipping.code))
-const shipmentCancelled = computed(() => props.shipping.statusText === 'Đã huỷ vận đơn')
+const shipmentCancelled = computed(() => props.shipping.statusText.includes('Đã huỷ vận đơn'))
 const isFallback = computed(() => props.shipping.provider === 'fallback')
 const missingCodes = computed(
   () => !props.shipping.cityCode || !props.shipping.districtCode || !props.shipping.wardCode
@@ -49,7 +49,7 @@ async function loadQuote() {
       method: 'POST'
     })) as { options?: ShippingQuoteOption[] }
     quoteOptions.value = data?.options ?? []
-    selectedRateId.value = data?.options?.[0]?.id ?? ''
+    selectedRateId.value = matchCustomerRate(quoteOptions.value)
     quoteLoaded.value = true
     if (!quoteOptions.value.length) errorMessage.value = 'Goship không trả về phương án nào cho đơn này.'
   } catch (error: any) {
@@ -61,6 +61,18 @@ async function loadQuote() {
   }
 }
 
+/** Chọn đúng rate khách đã dùng: khớp rate id, rồi tới hãng + dịch vụ, cuối cùng là rate đầu. */
+function matchCustomerRate(options: ShippingQuoteOption[]): string {
+  if (!options.length) return ''
+  const { rateId, carrier, service } = props.shipping
+  if (rateId) {
+    const exact = options.find((option) => option.id === rateId)
+    if (exact) return exact.id
+  }
+  const byService = options.find((option) => option.carrier === carrier && option.service === service)
+  return (byService ?? options[0]).id
+}
+
 onMounted(() => {
   if (canQuote.value) loadQuote()
 })
@@ -70,6 +82,18 @@ watch(shipmentCancelled, (cancelled) => {
   quoteLoaded.value = false
   if (canQuote.value) loadQuote()
 })
+
+// Admin sửa tỉnh/quận/phường → mã Goship đổi → báo giá lại ngay.
+watch(
+  () => [props.shipping.cityCode, props.shipping.districtCode, props.shipping.wardCode],
+  () => {
+    if (!canQuote.value) return
+    quoteLoaded.value = false
+    quoteOptions.value = []
+    selectedRateId.value = ''
+    loadQuote()
+  }
+)
 
 async function request<T>(url: string, options: Record<string, unknown>): Promise<T | null> {
   if (busy.value) return null
@@ -168,6 +192,16 @@ async function cancelShipment() {
           </div>
         </div>
 
+        <p
+          v-if="(props.shipping.feeActual || props.shipping.feeQuoted) > 0"
+          class="mt-2 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600"
+        >
+          <span>Shop trả cước VC</span>
+          <span class="font-semibold tabular-nums">
+            {{ formatVnd(props.shipping.feeActual || props.shipping.feeQuoted) }}
+          </span>
+        </p>
+
         <p v-if="props.shipping.returning" class="mt-2 rounded-lg bg-violet-50 px-3 py-2 text-[11px] text-violet-800">
           Hãng báo chuyển hoàn — kiểm tra và xử lý đơn thủ công.
         </p>
@@ -240,6 +274,7 @@ async function cancelShipment() {
               v-if="quoteOptions.length"
               v-model="selectedRateId"
               :options="quoteOptions"
+              fee-mode="carrier"
               show-success-rate
               dense
             />

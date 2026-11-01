@@ -94,7 +94,7 @@ const activeTab = ref<'connection' | 'pickup' | 'policy' | 'webhook'>('connectio
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-4xl space-y-4">
+  <div class="mx-auto w-full max-w-5xl space-y-4">
     <div>
       <h2 class="text-lg font-semibold">Cấu hình vận chuyển</h2>
       <p class="mt-0.5 text-xs text-slate-500">
@@ -123,14 +123,25 @@ const activeTab = ref<'connection' | 'pickup' | 'policy' | 'webhook'>('connectio
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
-            :disabled="testing"
-            @click="testConnection"
-          >
-            {{ testing ? 'Đang kiểm tra…' : 'Kiểm tra kết nối' }}
-          </button>
+          <div class="flex shrink-0 flex-wrap items-center gap-2">
+            <a
+              v-if="!settings.readiness?.api"
+              href="https://shop.goship.io/login?ref=daolv"
+              target="_blank"
+              rel="noopener"
+              class="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800"
+            >
+              Mở tài khoản Goship ↗
+            </a>
+            <button
+              type="button"
+              class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+              :disabled="testing"
+              @click="testConnection"
+            >
+              {{ testing ? 'Đang kiểm tra…' : 'Kiểm tra kết nối' }}
+            </button>
+          </div>
         </div>
       </section>
 

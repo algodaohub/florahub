@@ -27,27 +27,6 @@ const nav = [
     match: /^\/admin\/categories/
   },
   {
-    key: 'storefront',
-    label: 'Cửa hàng',
-    to: '/admin/storefront',
-    path: 'M4 9h16M6 9v10h12V9M9 9V6a3 3 0 0 1 6 0v3',
-    match: /^\/admin\/storefront/
-  },
-  {
-    key: 'payments',
-    label: 'Thanh toán',
-    to: '/admin/payments',
-    path: 'M3 8h18v10H3V8Zm0 4h18M7 15h4',
-    match: /^\/admin\/payments/
-  },
-  {
-    key: 'shipping',
-    label: 'Vận chuyển',
-    to: '/admin/shipping',
-    path: 'M3 7h11v8H3V7Zm11 3h4l3 3v2h-7v-5ZM6 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm12 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
-    match: /^\/admin\/shipping/
-  },
-  {
     key: 'accounting',
     label: 'Kế toán',
     to: '/admin/accounting',
@@ -62,11 +41,11 @@ const nav = [
     match: /^\/admin\/affiliate/
   },
   {
-    key: 'ai',
-    label: 'Mô hình AI',
-    to: '/admin/ai',
-    path: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z',
-    match: /^\/admin\/ai/
+    key: 'settings',
+    label: 'Cấu hình',
+    to: '/admin/settings',
+    path: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3a7.4 7.4 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2-1.2L14.5 3h-5l-.4 2.6a7.5 7.5 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6a7.4 7.4 0 0 0 0 2.4l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2 1.2l.4 2.6h5l.4-2.6a7.5 7.5 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6a7.4 7.4 0 0 0 .1-1.2Z',
+    match: /^\/admin\/(settings|storefront|shipping|payments|ai)/
   },
   {
     key: 'assistant',

@@ -31,6 +31,14 @@ useHead({ title: 'Về chúng tôi' })
             <dd class="text-right font-medium">{{ site.address }}</dd>
           </div>
         </dl>
+        <a
+          href="https://zalo.me/0945245115"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="mt-4 inline-flex items-center gap-2 rounded-full bg-[#0068FF] px-4 py-2 t-meta font-semibold text-white"
+        >
+          Chat Zalo: 0945245115
+        </a>
       </div>
     </section>
   </div>

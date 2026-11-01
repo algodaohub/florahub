@@ -175,7 +175,7 @@ watch(() => [props.city, props.ward], syncFromProps)
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
     <div>
       <span :id="provinceId + '-label'" class="mb-1 block font-medium text-muted" :class="dense ? 't-micro' : 't-meta'">
         Tỉnh / thành phố

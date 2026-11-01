@@ -35,7 +35,9 @@
       "WebFetch(*)",
       "WebFetch(*)",
       "WebFetch(*)",
-      "Bash(cd /Users/saturnlai/florahub && ls server/utils server/api/admin server/api/webhooks pages/admin components/admin 2>/dev/null && echo '---' && ls pb_migrations | tail -20)"
+      "Bash(cd /Users/saturnlai/florahub && ls server/utils server/api/admin server/api/webhooks pages/admin components/admin 2>/dev/null && echo '---' && ls pb_migrations | tail -20)",
+      "Bash(node:*)",
+      "Bash(git add components/admin/ProductEditor.vue server/api/admin/products/ai-generate.post.ts 'server/api/admin/products/[id].get.ts' 'server/api/admin/products/[id].patch.ts' server/utils/product-input.ts pb_migrations/1795400000_updated_products_geo_areas.js && git status --short | grep '^[AM] ')"
     ]
   }
 }

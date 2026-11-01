@@ -43,6 +43,7 @@ export function orderShippingFromRecord(order: PbRecord): AdminOrderShipping {
     provider: String(order.shipping_provider ?? ''),
     quoteId: String(order.shipping_quote_id ?? ''),
     optionId: String(order.shipping_option_id ?? ''),
+    rateId: String(order.shipping_rate_id ?? ''),
     carrier: String(order.shipping_carrier ?? ''),
     carrierName: String(order.shipping_carrier_name ?? ''),
     service: String(order.shipping_service ?? ''),
@@ -68,6 +69,11 @@ export function orderShippingFromRecord(order: PbRecord): AdminOrderShipping {
     createdAt: String(order.shipping_created_at ?? ''),
     updatedAt: String(order.shipping_updated_at ?? '')
   }
+}
+
+/** Vận đơn đã bị huỷ — cho phép báo giá lại và tạo vận đơn mới. */
+export function isShipmentCancelled(order: PbRecord): boolean {
+  return String(order.shipping_status_text ?? '').includes('Đã huỷ vận đơn')
 }
 
 export function shipmentUpdateFromWebhook(payload: any): ShipmentUpdate {
@@ -331,6 +337,15 @@ export async function createOrderShipment(order: PbRecord, rateId: string) {
     throw createError({ statusCode: 400, statusMessage: 'Goship đang tắt trong /admin/shipping' })
   }
   validatePickup(settings)
+
+  // Đã có vận đơn thì chỉ hiển thị hãng đã chọn, không cho tạo lại hãng khác (trừ khi đã huỷ).
+  const existingShipment = String(order.shipping_shipment_id ?? order.shipping_code ?? '').trim()
+  if (existingShipment && !isShipmentCancelled(order)) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Đơn đã có vận đơn — huỷ vận đơn trước khi tạo lại.'
+    })
+  }
 
   const to = {
     ward: String(order.shipping_ward_code_goship ?? ''),

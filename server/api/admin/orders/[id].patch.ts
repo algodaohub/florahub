@@ -4,6 +4,7 @@ import { isOrderStatus, isPaymentStatus, toText } from '~~/server/utils/admin-da
 import { canSetOrderStatus, canSetPaymentStatus } from '~~/utils/order-state'
 import { ensureOrderAccounting } from '~~/server/utils/accounting'
 import { approveDueCommissionForOrder, cancelCommissionForOrder, syncCommissionAtPayment } from '~~/server/utils/affiliate-commission'
+import { resolveCustomerAddress } from '~~/server/utils/shipping-address'
 import { ORDER_STATUS_META, PAYMENT_STATUS_META } from '~~/utils/admin'
 
 function orderLabel(status: string) {
@@ -30,6 +31,10 @@ export default defineEventHandler(async (event) => {
     shippingName?: string
     shippingPhone?: string
     shippingAddress?: string
+    shippingCityCode?: string
+    shippingWardCode?: string
+    shippingCityName?: string
+    shippingWardName?: string
   }>(event)
 
   const patch: Record<string, unknown> = {}
@@ -111,6 +116,72 @@ export default defineEventHandler(async (event) => {
   if (body?.shippingName !== undefined) patch.shipping_name = toText(body.shippingName, 120)
   if (body?.shippingPhone !== undefined) patch.shipping_phone = toText(body.shippingPhone, 40)
   if (body?.shippingAddress !== undefined) patch.shipping_address = toText(body.shippingAddress, 400)
+
+  // Admin chọn lại tỉnh/phường theo danh mục hành chính → ánh xạ sang mã Goship
+  // để báo giá/tạo vận đơn; quote và rate cũ của địa chỉ trước không còn hiệu lực.
+  const regionProvided =
+    body?.shippingCityCode !== undefined ||
+    body?.shippingWardCode !== undefined ||
+    body?.shippingCityName !== undefined ||
+    body?.shippingWardName !== undefined
+
+  if (regionProvided) {
+    if (['cancelled', 'completed'].includes(currentStatus)) {
+      throw createError({ statusCode: 400, statusMessage: 'Đơn đã kết thúc — không sửa địa chỉ giao hàng' })
+    }
+    const shipmentActive =
+      Boolean(String(current.shipping_shipment_id ?? '').trim()) ||
+      (Boolean(String(current.shipping_code ?? '').trim()) &&
+        String(current.shipping_status_text ?? '') !== 'Đã huỷ vận đơn')
+    if (shipmentActive) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Đơn đã có vận đơn — huỷ vận đơn trước khi đổi địa chỉ giao hàng'
+      })
+    }
+
+    const cityCode = String(body?.shippingCityCode ?? '').trim()
+    const wardCode = String(body?.shippingWardCode ?? '').trim()
+    if (!cityCode || !wardCode) {
+      throw createError({ statusCode: 400, statusMessage: 'Chọn đủ tỉnh/thành phố và phường/xã' })
+    }
+
+    let resolution
+    try {
+      resolution = await resolveCustomerAddress({
+        cityCode,
+        cityName: body?.shippingCityName,
+        wardCode,
+        wardName: body?.shippingWardName
+      })
+    } catch {
+      resolution = null
+    }
+    if (!resolution || resolution.resolution !== 'resolved') {
+      const where = resolution ? [resolution.city, resolution.ward].filter(Boolean).join(' — ') : ''
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Địa chỉ chưa khớp danh mục vận chuyển${where ? ` (${where})` : ''}. Hãy chọn phường/xã chuẩn trong danh mục.`
+      })
+    }
+
+    patch.shipping_region_city_code = cityCode
+    patch.shipping_region_ward_code = wardCode
+    patch.shipping_city_name = resolution.city
+    patch.shipping_district_name = resolution.district
+    patch.shipping_ward_name = resolution.ward
+    patch.shipping_city_code = resolution.cityCode
+    patch.shipping_district_code = resolution.districtCode
+    patch.shipping_ward_code_goship = resolution.wardCode
+    patch.shipping_provider = ''
+    patch.shipping_quote_id = ''
+    patch.shipping_option_id = ''
+    patch.shipping_rate_id = ''
+    patch.shipping_carrier = ''
+    patch.shipping_carrier_name = ''
+    patch.shipping_service = ''
+    patch.shipping_fee_quoted = 0
+  }
 
   if (Object.keys(patch).length === 0) {
     throw createError({ statusCode: 400, statusMessage: 'Không có thay đổi để lưu' })

@@ -11,3 +11,6 @@ prisma/dev.db-journal
 pb_data
 bin/pocketbase
 scripts/.cache
+
+# Tài liệu nội bộ (không phát hành công khai)
+docs/dich-vu-affiliate.md

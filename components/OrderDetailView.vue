@@ -217,7 +217,6 @@ function scrollToProducts() {
           <p class="t-page font-semibold text-primary">{{ formatVnd(order.total) }}</p>
         </div>
         <p v-if="order.taxTotal > 0" class="t-micro text-muted">Giá đã bao gồm VAT, không cộng thêm khi thanh toán.</p>
-        </div>
       </div>
     </section>
 

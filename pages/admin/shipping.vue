@@ -1,7 +1,7 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'admin', middleware: 'admin', title: 'Vận chuyển' })
+definePageMeta({ layout: 'admin', middleware: 'admin', redirect: '/admin/settings?tab=shipping' })
 </script>
 
 <template>
-  <AdminShippingSettingsPanel />
+  <div />
 </template>

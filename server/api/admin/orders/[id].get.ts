@@ -9,6 +9,7 @@ import {
   effectiveCommissionStatus,
   readAffiliateHoldDays
 } from '~~/server/utils/affiliate-commission'
+import { findProvince, listWards } from '~~/server/utils/locations'
 
 function displayName(record: PbRecord | null) {
   if (!record) return ''
@@ -66,6 +67,22 @@ export default defineEventHandler(async (event) => {
   const holdDays = commissionRecord ? await readAffiliateHoldDays() : 0
   const eligibleAtMs = commissionRecord ? commissionEligibleAt(order, holdDays) : null
 
+  const regionCityCode = String(order.shipping_region_city_code ?? '')
+  const regionWardCode = String(order.shipping_region_ward_code ?? '')
+  let regionCity = ''
+  let regionWard = ''
+  if (regionCityCode) {
+    regionCity = (await findProvince(regionCityCode))?.name ?? String(order.shipping_city_name ?? '')
+    if (regionWardCode) {
+      regionWard =
+        (await listWards(regionCityCode)).find((ward) => String(ward.code) === regionWardCode)?.name ??
+        String(order.shipping_ward_name ?? '')
+    }
+  }
+  // Đơn cũ chưa có mã vùng: prefill theo tên Goship để admin chọn lại trong danh mục.
+  if (!regionCity) regionCity = String(order.shipping_city_name ?? '')
+  if (!regionWard) regionWard = String(order.shipping_ward_name ?? '')
+
   return {
     order: {
       id: order.id,
@@ -82,6 +99,12 @@ export default defineEventHandler(async (event) => {
       shippingName: order.shipping_name,
       shippingPhone: order.shipping_phone,
       shippingAddress: order.shipping_address,
+      shippingRegion: {
+        city: regionCity,
+        ward: regionWard,
+        cityCode: regionCityCode,
+        wardCode: regionWardCode
+      },
       note: order.note,
       paidAt: order.paid_at || '',
       completedAt: order.completed_at || '',
