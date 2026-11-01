@@ -1,6 +1,6 @@
 # PocketBase data layer
 
-The application now reads and writes all store data through PocketBase. Prisma is kept only as the original seed source (`prisma/dev.db` + `prisma/seed.ts`); no runtime API uses Prisma anymore.
+The application now reads and writes all store data through PocketBase; no runtime API uses Prisma. The original Prisma/SQLite layer (`prisma/`, `scripts/migrate-to-pocketbase.mjs`) has been removed — the one-time migration below is already applied and kept here for the record.
 
 ## Collections
 
@@ -96,11 +96,7 @@ Collection `shipping_locations` cũ (cache danh mục Goship) đã xoá bằng m
 
 ## Migration
 
-```bash
-npm run pb:migrate
-```
-
-The script is idempotent: it creates missing collections/fields, then copies every row from `prisma/dev.db` into PocketBase. Existing PocketBase users are matched by email, so relations point at the real auth records. Every imported row stores its original Prisma id in `legacy_id`, which keeps old order links (`/orders/<old-id>`) and old cart cookies working.
+The one-time SQLite → PocketBase migration has already been applied; its script (`scripts/migrate-to-pocketbase.mjs`) and the Prisma stack have since been removed. It was idempotent: it created missing collections/fields, then copied every row from `prisma/dev.db` into PocketBase. Existing PocketBase users were matched by email, so relations point at the real auth records. Every imported row stores its original Prisma id in `legacy_id`, which keeps old order links (`/orders/<old-id>`) and old cart cookies working.
 
 No faker or generated records are used. The data copied is exactly what is already in SQLite.
 
