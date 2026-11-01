@@ -70,6 +70,10 @@ Doanh thu, đơn mới, sản phẩm bán chạy, việc cần xử lý.
 
 **Luồng vận chuyển:** đơn chưa có vận đơn → hệ thống **tự chọn sẵn hãng khách đã chọn** → bấm *Tạo vận đơn*. Khi đã tạo, chỉ hiển thị hãng đã chọn (muốn đổi phải *Huỷ vận đơn* trước).
 
+**Chọn hãng vận chuyển ngay trong đơn** — không cần rời trang hay cuộn hết trang: mục *Đơn vị vận chuyển* hiện danh sách hãng kèm giá, nhãn gợi ý (**Nhanh nhất**, **Rẻ nhất**, **Đề xuất**) và tỷ lệ giao thành công.
+
+![Chọn hãng vận chuyển trong đơn hàng](images/admin-order-carrier.png)
+
 ### 4. Vận chuyển — `/admin/shipping`
 Bật Goship, nhập API token / client id / secret, địa chỉ lấy hàng, cân nặng kiện. Chính sách phí:
 - **Markup %** — cộng thêm vào cước hãng (lãi vận chuyển). Ví dụ cước hãng 15.700₫, markup 10% → khách trả 18.000₫.

@@ -24,6 +24,10 @@ Nền tảng thương mại điện tử **mã nguồn mở** (Nuxt 3 + PocketBa
 |---|---|---|
 | ![Đơn hàng](docs/images/admin-orders.png) | ![Sản phẩm](docs/images/admin-products.png) | ![Vận chuyển](docs/images/admin-shipping.png) |
 
+**Chọn hãng vận chuyển ngay trong đơn** — giá, nhãn *Nhanh nhất / Rẻ nhất / Đề xuất*, tỷ lệ giao thành công:
+
+![Chọn hãng vận chuyển trong đơn hàng](docs/images/admin-order-carrier.png)
+
 > Ảnh chụp từ dữ liệu demo (tên shop "VyOra 1"). Xem thêm trong [`docs/huong-dan-su-dung.md`](docs/huong-dan-su-dung.md).
 
 ---
