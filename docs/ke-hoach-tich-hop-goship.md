@@ -360,8 +360,8 @@ Giá trị mặc định khi migrate từ cấu hình cũ:
 - `showEta = true`, `showSuccessRate = false`, `absorbFeeDifference = true`.
 
 Sau migration, `features.shippingFee` và `features.freeShippingThreshold` **bị bỏ khỏi UI và khỏi luồng
-checkout**; dữ liệu cũ trong JSON có thể còn nhưng bị bỏ qua. Script `scripts/migrate-shipping-policy.mjs`
-chỉ chạy một lần để ghi `shipping` vào mọi `store_configs`.
+checkout**; dữ liệu cũ trong JSON có thể còn nhưng bị bỏ qua. Migration chỉ chạy một lần để ghi `shipping`
+vào mọi `store_configs` (script đã bỏ khỏi repo sau khi áp dụng).
 
 ### 6.3 `shipping_quotes` (rule `null`)
 
@@ -1209,7 +1209,7 @@ giá + tạo vận đơn thành công trên sandbox.
 5. Server-authoritative: sửa `priceOrder`/`placeOrder` dùng quote + fallback; bỏ phí phẳng.
 6. Cart/product/site: bỏ phí phẳng, hiển thị "tính khi thanh toán"; banner freeship theo policy.
 7. Admin `/admin/shipping` 4 tab (kết nối, pickup/parcel, chính sách, webhook) + nav.
-8. Data migration `scripts/migrate-shipping-policy.mjs`; backfill mã địa chỉ.
+8. Data migration phí vận chuyển; backfill mã địa chỉ.
 9. Bật/tắt dần bằng `shipping.enabled`; cửa hàng chưa cấu hình Goship dùng fallback phí cũ.
 
 **Điều kiện hoàn thành:** khách đặt được đơn với cước sandbox; đổi địa chỉ/giỏ thì giá đổi; gửi phí giả từ
