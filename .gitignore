@@ -12,5 +12,10 @@ pb_data
 bin/pocketbase
 scripts/.cache
 
+# Cấu hình cục bộ của editor/agent (không phải nội dung dự án)
+.qoder/
+.vscode/
+.idea/
+
 # Tài liệu nội bộ (không phát hành công khai)
 docs/dich-vu-affiliate.md
